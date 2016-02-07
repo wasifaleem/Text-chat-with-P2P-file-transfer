@@ -4,4 +4,13 @@
 #define HOSTNAME_LEN 128
 #define PATH_LEN 256
 
+#define SERVER_BACKLOG 10
+#define MSG_LEN 256
+
+#endif
+
+#ifdef DEBUG
+#define DEBUG_MSG(str) do { std::cout << str << std::endl; } while( false )
+#else
+#define DEBUG_MSG(str) do { } while ( false )
 #endif

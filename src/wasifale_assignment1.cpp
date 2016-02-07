@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     }
     switch (argv[1][0]) {
         case 's': {
-            Server server(atoi(argv[2]));
+            Server server(argv[2]);
             server.start();
             return 0;
         }

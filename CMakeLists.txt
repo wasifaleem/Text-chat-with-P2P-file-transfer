@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.3)
 project(assignment1)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -std=gnu++98")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG -g -Wall -std=gnu++98")
 
 include_directories(include)
 file(GLOB_RECURSE INCLUDE_DIRECTORIES "include/*.h")
