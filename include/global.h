@@ -6,6 +6,10 @@
 
 #define SERVER_BACKLOG 10
 #define MSG_LEN 256
+#define COMMAND_SEPARATOR ' '
+#define UBIT_NAME "wasifale"
+#define EMPTY_STRING ""
+
 
 #endif
 
