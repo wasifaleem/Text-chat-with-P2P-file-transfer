@@ -65,6 +65,7 @@ namespace client_server {
         m["BLOCK"] = BLOCK;
         m["UNBLOCK"] = UNBLOCK;
         m["LOGOUT"] = LOGOUT;
+        m["EXIT"] = EXIT;
         return m;
     }
 
@@ -77,6 +78,7 @@ namespace client_server {
         m[BLOCK] = "BLOCK";
         m[UNBLOCK] = "UNBLOCK";
         m[LOGOUT] = "LOGOUT";
+        m[EXIT] = "EXIT";
         return m;
     }
 

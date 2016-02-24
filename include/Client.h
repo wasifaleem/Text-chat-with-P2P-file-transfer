@@ -12,10 +12,13 @@ public:
     Client(const char *port);
     void start();
 
+    virtual ~Client();
+
 private:
 
     const char *port;
     bool logged_in;
+    client_key me;
     std::map<client_key, client_info_ptype> p2p_clients;
     std::map<client_key, client_info_ptype> clients_from_server;
 
@@ -32,7 +35,9 @@ private:
 
     bool send_server_command(client_server::command c, std::string arg1 = "", std::string arg2 = "") const;
 
-    void log_recieved(std::string string);
+    void log_recieved();
+
+    const client_info_ptype find_me();
 };
 
 

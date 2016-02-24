@@ -11,6 +11,7 @@
 #include <boost/serialization/deque.hpp>
 #include <boost/serialization/utility.hpp>
 #include <boost/serialization/map.hpp>
+#include <boost/serialization/set.hpp>
 #include <boost/serialization/string.hpp>
 
 enum client_status {
@@ -20,6 +21,11 @@ enum client_status {
 struct client_key {
     std::string ip;
     int sockfd;
+
+    client_key() { }
+
+    client_key(std::string ip, int fd) : ip(ip), sockfd(fd) {
+    }
 
     bool operator<(const client_key &o) const {
         int ip_compare = ip.compare(o.ip);
@@ -68,11 +74,13 @@ public:
 
     template<class Archive>
     void serialize(Archive &ar, const unsigned int version) {
-        ar & ip & host & client_port & status & messages;
+        ar & ip & host & client_port & status & blocked_ips & messages;
     }
 
-    static void serilaizeTo(std::stringstream *ss, std::map<client_key, ClientInfo*>);
-    static std::map<client_key, ClientInfo*> deserilaizeFrom(std::istringstream *is);
+    static void serializeTo(std::stringstream *ss, std::map<client_key, ClientInfo *>);
+
+    static std::map<client_key, ClientInfo *> deserializeFrom(std::istringstream *is);
+
 };
 
 typedef ClientInfo *client_info_ptype;

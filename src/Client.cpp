@@ -15,6 +15,7 @@
 #include "command.h"
 
 Client::Client(const char *portNum) : port(portNum) {
+    me = client_key();
 }
 
 void Client::start() {
@@ -159,7 +160,7 @@ void Client::selectLoop() {
 }
 
 void Client::newClient(int fd, sockaddr_storage addr, socklen_t len) {
-    const client_key key = {util::get_ip(addr), fd};
+    const client_key key = client_key(util::get_ip(addr), fd);
 
     if (p2p_clients.count(key) == 0) {
         DEBUG_MSG("p2p request from unkown client " << key);
@@ -211,7 +212,7 @@ void Client::cli_command(std::string command_str) {
                 END(command);
                 break;
             }
-            case client::REFRESH:
+            case client::REFRESH: {
                 if (logged_in && send_server_command(client_server::REFRESH)) {
                     SUCCESS(command);
                 } else {
@@ -219,13 +220,15 @@ void Client::cli_command(std::string command_str) {
                 }
                 END(command);
                 break;
+            }
             case client::SEND: {
                 std::string ip = command_v.at(1);
-                const client_key *client_with_ip = util::get_by_ip(ip, clients_from_server);
+                const std::string msg = util::join_by_space_from_pos(command_v, 2);
+                const client_info_ptype client = util::find_by_ip(ip, clients_from_server);
                 if (logged_in
                     && util::valid_inet(ip)
-                    && client_with_ip != NULL
-                    && send_server_command(client_server::SEND, ip, command_v.at(2))) {
+                    && client != NULL
+                    && send_server_command(client_server::SEND, ip, msg)) {
                     SUCCESS(command);
                 } else {
                     ERROR(command);
@@ -233,23 +236,74 @@ void Client::cli_command(std::string command_str) {
                 END(command);
                 break;
             }
-            case client::BROADCAST:
+            case client::BROADCAST: {
+                const std::string msg = util::join_by_space_from_pos(command_v, 1);
                 if (logged_in
-                    && send_server_command(client_server::BROADCAST, command_v.at(1))) {
+                    && send_server_command(client_server::BROADCAST, msg)) {
+                    SUCCESS(command);
+                } else {
+                    ERROR(command);
+                }
+
+                END(command);
+                break;
+            }
+            case client::BLOCK: {
+                std::string ip = command_v.at(1);
+                client_info_ptype myself = find_me();
+                const client_info_ptype client = util::find_by_ip(ip, clients_from_server);
+                if (logged_in
+                    && util::valid_inet(ip)
+                    && client != NULL
+                    && (myself->blocked_ips.count(ip) == 0)
+                    && send_server_command(client_server::BLOCK, ip)) {
+                    myself->blocked_ips.insert(ip);
                     SUCCESS(command);
                 } else {
                     ERROR(command);
                 }
                 END(command);
                 break;
-            case client::BLOCK:
+            }
+            case client::UNBLOCK: {
+                std::string ip = command_v.at(1);
+                client_info_ptype myself = find_me();
+                const client_info_ptype client = util::find_by_ip(ip, clients_from_server);
+                if (logged_in
+                    && util::valid_inet(ip)
+                    && client != NULL
+                    && (myself->blocked_ips.count(ip) > 0)
+                    && send_server_command(client_server::UNBLOCK, ip)) {
+                    myself->blocked_ips.erase(ip);
+                    SUCCESS(command);
+                } else {
+                    ERROR(command);
+                }
+                END(command);
                 break;
-            case client::UNBLOCK:
+            }
+            case client::LOGOUT: {
+                if (logged_in
+                    && send_server_command(client_server::LOGOUT)) {
+                    logged_in = false;
+                    SUCCESS(command);
+                } else {
+                    ERROR(command);
+                }
+                END(command);
                 break;
-            case client::LOGOUT:
-                break;
-            case client::EXIT:
-                break;
+            }
+            case client::EXIT: {
+                if (logged_in
+                    && send_server_command(client_server::EXIT)) {
+                    logged_in = false;
+                    SUCCESS(command);
+                } else {
+                    ERROR(command);
+                }
+                END(command);
+                exit(0);
+            }
             case client::SENDFILE:
                 break;
             case client::UNKNOWN:
@@ -339,27 +393,36 @@ void Client::server_command(std::string command_data) {
         std::string command = command_v.at(0);
         switch (client_server::parse_command(command)) {
             case client_server::LOGIN: {
-                clients_from_server = ClientInfo::deserilaizeFrom(&f);
-                log_recieved(command_v.at(1));
+                clients_from_server = ClientInfo::deserializeFrom(&f);
+                me = client_key(command_v.at(1), util::str_to_int(command_v.at(2)));
+
+                log_recieved();
                 break;
             }
             case client_server::REFRESH: {
-                clients_from_server = ClientInfo::deserilaizeFrom(&f);
-                log_recieved(command_v.at(1));
+                clients_from_server = ClientInfo::deserializeFrom(&f);
+                me = client_key(command_v.at(1), util::str_to_int(command_v.at(2)));
+
+                log_recieved();
                 break;
             }
             case client_server::SEND: {
-                received(command_v.at(1), command_v.at(2));
+                const std::string msg = util::join_by_space_from_pos(command_v, 2);
+                received(command_v.at(1), msg);
                 break;
             }
-            case client_server::BROADCAST:
-                received("255.255.255.255", command_v.at(1));
+            case client_server::BROADCAST: {
+                const std::string msg = util::join_by_space_from_pos(command_v, 1);
+                received("255.255.255.255", msg);
                 break;
+            }
             case client_server::BLOCK:
                 break;
             case client_server::UNBLOCK:
                 break;
             case client_server::LOGOUT:
+                break;
+            case client_server::EXIT:
                 break;
 
             case client_server::UNKNOWN:
@@ -371,15 +434,33 @@ void Client::server_command(std::string command_data) {
     }
 }
 
-void Client::log_recieved(std::string ip) {
-    const client_key *me = util::get_by_ip(ip, clients_from_server);
-    if (me != NULL) {
-        ClientInfo *c = clients_from_server[*me];
-        if (!(c)->messages.empty()) {
-            for (std::deque<std::pair<client_key, std::string> >::const_iterator it = c->messages.begin();
-                 it != c->messages.end(); ++it) {
+void Client::log_recieved() {
+    client_info_ptype client = find_me();
+    if (client != NULL) {
+        if (!(client->messages.empty())) {
+            for (std::deque<std::pair<client_key, std::string> >::const_iterator it = client->messages.begin();
+                 it != client->messages.end(); ++it) {
                 received(it->first.ip, it->second);
             }
         }
     }
+}
+
+Client::~Client() {
+    for (std::map<client_key, client_info_ptype>::const_iterator it = clients_from_server.begin();
+         it != clients_from_server.end(); ++it) {
+        delete it->second;
+    };
+    for (std::map<client_key, client_info_ptype>::const_iterator it = p2p_clients.begin();
+         it != p2p_clients.end(); ++it) {
+        delete it->second;
+    };
+}
+
+const client_info_ptype Client::find_me() {
+    std::map<client_key, client_info_ptype>::iterator i = clients_from_server.find(me);
+    if (i != clients_from_server.end()) {
+        return i->second;
+    }
+    return NULL;
 }

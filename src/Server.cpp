@@ -143,7 +143,7 @@ void Server::selectLoop() {
 }
 
 void Server::newClient(int fd, sockaddr_storage addr, socklen_t len) {
-    const client_key key = {util::get_ip(addr), fd};
+    const client_key key = client_key(util::get_ip(addr), fd);
 
     if (clients.count(key) == 0) {
         client_info_ptype cinfo = new ClientInfo();
@@ -214,17 +214,16 @@ void Server::cli_command(std::string command_str) {
             case server::BLOCKED: {
                 std::string ip = command_v.at(1);
                 if (util::valid_inet(ip)) {
-                    const client_key *client_with_ip = util::get_by_ip(ip, clients);
-                    if (client_with_ip != NULL) {
+                    const client_info_ptype client = util::find_by_ip(ip, clients);
+                    if (client != NULL) {
                         SUCCESS(command);
-                        ClientInfo *client = clients[*client_with_ip];
                         if (!client->blocked_ips.empty()) {
                             std::vector<ClientInfo> clients_v;
                             for (std::set<std::string>::const_iterator it = client->blocked_ips.begin();
                                  it != client->blocked_ips.end(); ++it) {
-                                const client_key *blocked_client = util::get_by_ip((*it), clients);
+                                const client_info_ptype blocked_client = util::find_by_ip((*it), clients);
                                 if (blocked_client != NULL) {
-                                    clients_v.push_back(*clients[*blocked_client]);
+                                    clients_v.push_back(*blocked_client);
                                 }
                             };
                             sort(clients_v.begin(), clients_v.end());
@@ -283,8 +282,11 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                 client->status = LOGGED_IN;
 
                 std::stringstream ss;
-                ss << client_server::command_str(client_server::LOGIN) << COMMAND_SEPARATOR << client->ip << std::endl;
-                ClientInfo::serilaizeTo(&ss, clients);
+                ss << client_server::command_str(client_server::LOGIN)
+                << COMMAND_SEPARATOR << key.ip
+                << COMMAND_SEPARATOR << key.sockfd
+                << std::endl;
+                ClientInfo::serializeTo(&ss, clients);
                 util::sendString(client->sockfd, ss.str());
 
                 log_relay(client);
@@ -292,9 +294,11 @@ void Server::client_command(std::string command_str, const client_key key, Clien
             }
             case client_server::REFRESH: {
                 std::stringstream ss;
-                ss << client_server::command_str(client_server::REFRESH) << COMMAND_SEPARATOR << client->ip <<
-                std::endl;
-                ClientInfo::serilaizeTo(&ss, clients);
+                ss << client_server::command_str(client_server::REFRESH)
+                << COMMAND_SEPARATOR << key.ip
+                << COMMAND_SEPARATOR << key.sockfd
+                << std::endl;
+                ClientInfo::serializeTo(&ss, clients);
                 util::sendString(client->sockfd, ss.str());
 
                 log_relay(client);
@@ -302,17 +306,17 @@ void Server::client_command(std::string command_str, const client_key key, Clien
             }
             case client_server::SEND: {
                 std::string ip = command_v.at(1);
+                const std::string msg = util::join_by_space_from_pos(command_v, 2);
                 if (util::valid_inet(ip)) {
-                    const client_key *client_with_ip = util::get_by_ip(ip, clients); // TODO: pass port with command
-                    if (client_with_ip != NULL) {
-                        client_info_ptype to = clients[*client_with_ip];
-                        if ((to->blocked_ips.count(client->ip) == 0)) {
-                            if (send_client_command(to, client_server::SEND, ip, command_v.at(2))) {
+                    const client_info_ptype to_client = util::find_by_ip(ip, clients);
+                    if (to_client != NULL) {
+                        if ((to_client->blocked_ips.count(client->ip) == 0)) {
+                            if (send_client_command(to_client, client_server::SEND, ip, msg)) {
                                 client->sent_count++;
-                                to->receive_count++;
-                                relay(client->ip, ip, command_v.at(2));
+                                to_client->receive_count++;
+                                relay(client->ip, ip, msg);
                             } else {
-                                to->messages.push_back(std::make_pair(key, command_v.at(2)));
+                                to_client->messages.push_back(std::make_pair(key, msg));
                             }
                         }
                     }
@@ -320,31 +324,50 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                 break;
             }
             case client_server::BROADCAST: {
-                bool sent = false;
+                const std::string msg = util::join_by_space_from_pos(command_v, 1);
                 for (std::map<client_key, client_info_ptype>::iterator it = clients.begin();
                      it != clients.end(); ++it) {
                     if (!(it->first == key)) {
                         if (it->second->blocked_ips.count(client->ip) == 0) {
-                            if (send_client_command(it->second, client_server::BROADCAST, command_v.at(1))) {
-                                sent = true;
+                            if (send_client_command(it->second, client_server::BROADCAST, msg)) {
                                 it->second->receive_count++;
                                 client->sent_count++;
                             } else {
-                                it->second->messages.push_back(std::make_pair(key, command_v.at(2)));
+                                it->second->messages.push_back(std::make_pair(key, msg));
                             }
                         }
                     }
                 };
-                relay(client->ip, "255.255.255.255", command_v.at(1));
+                relay(client->ip, "255.255.255.255", msg);
                 break;
             }
-            case client_server::BLOCK:
+            case client_server::BLOCK: {
+                std::string ip = command_v.at(1);
+                if (util::valid_inet(ip)) {
+                    client->blocked_ips.insert(ip);
+                }
                 break;
-            case client_server::UNBLOCK:
+            }
+            case client_server::UNBLOCK: {
+                std::string ip = command_v.at(1);
+                if (util::valid_inet(ip)) {
+                    client->blocked_ips.erase(ip);
+                }
                 break;
-            case client_server::LOGOUT:
+            }
+            case client_server::LOGOUT: {
+                client->status = OFFLINE;
+                close(client->sockfd);
+                FD_CLR(client->sockfd, &all_fd);
                 break;
-
+            }
+            case client_server::EXIT: {
+                client->status = OFFLINE;
+                close(client->sockfd);
+                FD_CLR(client->sockfd, &all_fd);
+                clients.erase(key);
+                break;
+            }
             case client_server::UNKNOWN:
                 break;
         }

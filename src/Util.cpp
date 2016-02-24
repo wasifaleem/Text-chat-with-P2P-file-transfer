@@ -114,11 +114,33 @@ namespace util {
         return ss.str();
     }
 
-    const client_key *get_by_ip(const std::string ip, std::map<client_key, client_info_ptype> clients) {
+    int str_to_int(const std::string &str) {
+        int i;
+        std::istringstream ss(str);
+        ss.imbue(std::locale::classic());
+        ss >> i;
+        return i;
+    }
+
+    const std::string join_by_space_from_pos(std::vector<std::string> v, int pos) {
+        std::stringstream ss;
+        int j = 0;
+        for (std::vector<std::string>::const_iterator i = (v.begin() + (pos)); i != v.end(); ++i) {
+            if (j == 0) {
+                ss << *i;
+            } else {
+                ss << SPACE << *i;
+            }
+            j++;
+        }
+        return ss.str();
+    }
+
+    const client_info_ptype find_by_ip(const std::string ip, std::map<client_key, client_info_ptype> clients) {
         for (std::map<client_key, client_info_ptype>::iterator it = clients.begin();
              it != clients.end(); ++it) {
             if (ip.compare((it->first).ip) == 0) {
-                return &(it->first);
+                return it->second;
             }
         };
         return NULL;

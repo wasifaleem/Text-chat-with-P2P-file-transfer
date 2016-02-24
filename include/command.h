@@ -48,6 +48,7 @@ namespace client_server {
         BLOCK,
         UNBLOCK,
         LOGOUT,
+        EXIT,
         UNKNOWN
     };
     command parse_command(const std::string command_str);
