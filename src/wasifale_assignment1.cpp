@@ -22,11 +22,12 @@
  */
 #include <iostream>
 #include <stdio.h>
-#include "Server.h"
 #include <stdlib.h>
 
 #include "../include/global.h"
 #include "../include/logger.h"
+#include "../include/Server.h"
+#include "../include/Client.h"
 
 using namespace std;
 
@@ -54,6 +55,10 @@ int main(int argc, char **argv) {
             Server server(argv[2]);
             server.start();
             return 0;
+        }
+        case 'c': {
+            Client client(argv[2]);
+            client.start();
         }
         default: {
             cout << "Usage: ./assignment1 c/s port" << endl;

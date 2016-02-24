@@ -3,60 +3,62 @@
 
 #include <string>
 #include <map>
+#include "ClientInfo.h"
 
-enum command {
-    // client & server
+namespace server {
+    enum cli_command {
+        AUTHOR,
+        IP,
+        PORT,
+        LIST,
+        STATISTICS,
+        BLOCKED,
+        UNKNOWN
+    };
 
-    AUTHOR,
-    IP,
-    PORT,
-    LIST,
-
-    // server only
-
-    STATISTICS,
-    BLOCKED,
-
-    // client only
-
-    LOGIN,
-    REFRESH,
-    BROADCAST,
-    BLOCK,
-    UNBLOCK,
-    LOGOUT,
-    EXIT,
-    SENDFILE,
-
-    UNKNOWN
-};
-
-std::map<std::string, command> create_map() {
-    std::map<std::string, command> m;
-    m["AUTHOR"] = AUTHOR;
-    m["IP"] = IP;
-    m["PORT"] = PORT;
-    m["LIST"] = LIST;
-    m["STATISTICS"] = STATISTICS;
-    m["BLOCKED"] = BLOCKED;
-    m["LOGIN"] = LOGIN;
-    m["REFRESH"] = REFRESH;
-    m["BROADCAST"] = BROADCAST;
-    m["BLOCK"] = BLOCK;
-    m["UNBLOCK"] = UNBLOCK;
-    m["LOGOUT"] = LOGOUT;
-    m["EXIT"] = EXIT;
-    m["SENDFILE"] = SENDFILE;
-    return m;
+    cli_command parse_cli_command(const std::string command_str);
 }
 
-std::map<std::string, command> m = create_map();
-
-inline command parse_command(const std::string command_str) {
-    if (m.count(command_str)) {
-        return m[command_str];
-    }
-    return UNKNOWN;
+namespace client {
+    enum cli_command {
+        AUTHOR,
+        IP,
+        PORT,
+        LIST,
+        LOGIN,
+        REFRESH,
+        SEND,
+        BROADCAST,
+        BLOCK,
+        UNBLOCK,
+        LOGOUT,
+        EXIT,
+        SENDFILE,
+        UNKNOWN
+    };
+    cli_command parse_cli_command(const std::string command_str);
 }
+
+namespace client_server {
+    enum command {
+        LOGIN,
+        REFRESH,
+        SEND,
+        BROADCAST,
+        BLOCK,
+        UNBLOCK,
+        LOGOUT,
+        UNKNOWN
+    };
+    command parse_command(const std::string command_str);
+    std::string command_str(const command c);
+}
+
+void author(std::string command);
+void ip(std::string command);
+void port_command(std::string command, const char* port);
+void list_command(std::string command, std::map<client_key, client_info_ptype> clients);
+void relay(std::string from, std::string to, std::string msg);
+void received(std::string from, std::string msg);
 
 #endif //COMMAND_H

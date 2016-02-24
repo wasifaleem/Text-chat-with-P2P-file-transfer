@@ -3,17 +3,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <global.h>
-#include <stdio.h>
 #include <errno.h>
 #include <arpa/inet.h>
-#include <sstream>
-#include <iterator>
 #include <algorithm>
-#include <command.h>
-#include <stdexcept>
+#include <sstream>
 
 #include "../include/Server.h"
+#include "../include/ClientInfo.h"
 #include "../include/logger.h"
+#include "../include/Util.h"
+#include "command.h"
 
 
 Server::Server(const char *portNum) : port(portNum) {
@@ -100,7 +99,7 @@ void Server::selectLoop() {
             if (FD_ISSET(STDIN_FILENO, &read_fd)) {
                 if ((bytes_read_count = read(STDIN_FILENO, buffer, sizeof buffer)) > 0) {
                     std::string command_str = std::string(&buffer[0], (unsigned long) bytes_read_count);
-                    command(command_str, NULL);
+                    cli_command(command_str);
                 } else {
                     DEBUG_MSG("STDIN " << " errorno:" << errno);
                 }
@@ -119,15 +118,16 @@ void Server::selectLoop() {
             }
 
             // recv clients
-            for (std::map<std::string, client_info*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+            for (std::map<client_key, ClientInfo *>::iterator it = clients.begin(); it != clients.end(); ++it) {
                 if (FD_ISSET((*it->second).sockfd, &read_fd)) {
                     if ((bytes_read_count = recv((*it->second).sockfd, buffer, sizeof buffer, 0)) > 0) {
                         std::string msg_recvd = std::string(&buffer[0], (unsigned long) bytes_read_count);
                         DEBUG_MSG("RECV from " << it->first << " " << msg_recvd);
-                        command(msg_recvd, it->second);
+                        client_command(msg_recvd, it->second);
                     } else {
                         if (bytes_read_count == 0) {
-                            DEBUG_MSG("Client connection closed normally " << "fd:" << (*it->second).sockfd << " errorno:" <<
+                            DEBUG_MSG("Client connection closed normally " << "fd:" << (*it->second).sockfd <<
+                                      " errorno:" <<
                                       errno);
                             (*it->second).status = OFFLINE;
                             close((*it->second).sockfd);
@@ -140,35 +140,32 @@ void Server::selectLoop() {
             }
         }
     }
-
 }
 
 void Server::newClient(int fd, sockaddr_storage addr, socklen_t len) {
-    const std::string ip = get_ip(addr);
+    const client_key key = {util::get_ip(addr), fd};
 
-    if (clients.count(ip) == 0) {
-        char host[NI_MAXHOST], service[NI_MAXSERV];
-
-        if (getnameinfo((struct sockaddr *) &addr,
-                        len, host, NI_MAXHOST,
-                        service, NI_MAXSERV, NI_NUMERICSERV) == 0) {
-            DEBUG_MSG("New client " << ip << " " << host << " " << service);
-        }
-
-        Server::client_info_type cinfo = new client_info();
-        (*cinfo).sockfd = fd;
-        (*cinfo).ip = ip;
-        (*cinfo).host = std::string(host);
-        (*cinfo).service = std::string(service);
-        (*cinfo).status = ONLINE;
-        (*cinfo).receive_count = 0;
-        (*cinfo).sent_count = 0;
-        clients[ip] = cinfo;
-    } else {
-        Server::client_info_type cinfo = clients[ip];
-        (*cinfo).status = ONLINE;
-        DEBUG_MSG("Old client " << ip << " " << (*cinfo).host << " " << (*cinfo).service << status((*cinfo).status));
+    if (clients.count(key) == 0) {
+        client_info_ptype cinfo = new ClientInfo();
+        clients[key] = cinfo;
     }
+
+    char host[NI_MAXHOST], service[NI_MAXSERV];
+
+    if (getnameinfo((struct sockaddr *) &addr,
+                    len, host, NI_MAXHOST,
+                    service, NI_MAXSERV, NI_NUMERICSERV) == 0) {
+        DEBUG_MSG("New client " << key << " " << host << " " << service);
+    }
+    client_info_ptype cinfo = clients[key];
+    (*cinfo).sockfd = key.sockfd;
+    (*cinfo).ip = key.ip;
+    (*cinfo).host = std::string(host);
+    (*cinfo).os_port = util::int_to_string(((struct sockaddr_in *) &addr)->sin_port);
+    (*cinfo).service = std::string(service);
+    (*cinfo).status = ONLINE;
+    (*cinfo).receive_count = 0;
+    (*cinfo).sent_count = 0;
 
     FD_SET(fd, &all_fd); // add new client to our set
     if (max_fd < fd) { // update max_fd
@@ -176,71 +173,33 @@ void Server::newClient(int fd, sockaddr_storage addr, socklen_t len) {
     }
 }
 
-const std::string Server::get_ip(sockaddr_storage addr) const {
-    if (addr.ss_family == AF_INET) { // IPv4
-        char ip[INET_ADDRSTRLEN];
-        return std::string(inet_ntop(addr.ss_family,
-                                     &(((struct sockaddr_in *) &addr)->sin_addr),
-                                     ip, INET_ADDRSTRLEN));
-    } else {                          // IPv6
-        char ip[INET6_ADDRSTRLEN];
-        return std::string(inet_ntop(addr.ss_family,
-                                     &(((struct sockaddr_in6 *) &addr)->sin6_addr),
-                                     ip, INET6_ADDRSTRLEN));
-    }
-}
 
-void Server::command(std::string command_str, Server::client_info *cinfo = NULL) {
-    std::vector<std::string> command_v = split_by_space(command_str);
+void Server::cli_command(std::string command_str) {
+    std::vector<std::string> command_v = util::split_by_space(command_str);
     try {
         std::string command = command_v.at(0);
-        switch (parse_command(command)) {
-            case AUTHOR: {
-                SUCCESS(command);
-                cse4589_print_and_log("I, %s, have read and understood the course academic integrity policy.\n",
-                                      UBIT_NAME);
-                END(command);
+        switch (server::parse_cli_command(command)) {
+            case server::AUTHOR: {
+                author(command);
                 break;
             }
-            case IP: {
-                std::string ip = primary_ip();
-                if (!ip.empty()) {
-                    SUCCESS(command);
-                    cse4589_print_and_log("IP:%s\n", ip.c_str());
-                } else {
-                    ERROR(command);
-                }
-                END(command);
+            case server::IP: {
+                ip(command);
                 break;
             }
-            case PORT: {
-                SUCCESS(command);
-                cse4589_print_and_log("PORT:%d\n", port);
-                END(command);
+            case server::PORT: {
+                port_command(command, port);
                 break;
             }
-            case LIST: {
+            case server::LIST: {
+                list_command(command, clients);
+                break;
+            }
+            case server::STATISTICS: {
                 SUCCESS(command);
                 if (!clients.empty()) {
-                    std::vector<Server::client_info> clients_v = sorted_clients();
-                    for (std::vector<client_info>::size_type i = 0; i != clients_v.size(); i++) {
-                        if (clients_v[i].status == ONLINE) {
-                            cse4589_print_and_log("%-5d%-35s%-20s%-8d\n",
-                                                  i,
-                                                  clients_v[i].host.c_str(),
-                                                  clients_v[i].ip.c_str(),
-                                                  clients_v[i].service.c_str());
-                        }
-                    }
-                }
-                END(command);
-                break;
-            }
-            case STATISTICS:
-                SUCCESS(command);
-                if (!clients.empty()) {
-                    std::vector<Server::client_info> clients_v = sorted_clients();
-                    for (std::vector<client_info>::size_type i = 0; i != clients_v.size(); i++) {
+                    std::vector<ClientInfo> clients_v = sorted_clients();
+                    for (std::vector<ClientInfo>::size_type i = 0; i != clients_v.size(); i++) {
                         cse4589_print_and_log("%-5d%-35s%-8d%-8d%-8s\n",
                                               i,
                                               clients_v[i].host.c_str(),
@@ -251,36 +210,54 @@ void Server::command(std::string command_str, Server::client_info *cinfo = NULL)
                 }
                 END(command);
                 break;
-            case BLOCKED:
+            }
+            case server::BLOCKED: {
+                std::string ip = command_v.at(1);
+                if (util::valid_inet(ip)) {
+                    const client_key *client_with_ip = util::get_by_ip(ip, clients);
+                    if (client_with_ip != NULL) {
+                        SUCCESS(command);
+                        ClientInfo *client = clients[*client_with_ip];
+                        if (!client->blocked_ips.empty()) {
+                            std::vector<ClientInfo> clients_v;
+                            for (std::set<std::string>::const_iterator it = client->blocked_ips.begin();
+                                 it != client->blocked_ips.end(); ++it) {
+                                const client_key *blocked_client = util::get_by_ip((*it), clients);
+                                if (blocked_client != NULL) {
+                                    clients_v.push_back(*clients[*blocked_client]);
+                                }
+                            };
+                            sort(clients_v.begin(), clients_v.end());
+
+                            for (std::vector<ClientInfo>::size_type i = 0; i != clients_v.size(); i++) {
+                                cse4589_print_and_log("%-5d%-35s%-20s%-8s\n",
+                                                      i,
+                                                      clients_v[i].host.c_str(),
+                                                      clients_v[i].ip.c_str(),
+                                                      clients_v[i].client_port.c_str());
+                            }
+                        }
+                    } else {
+                        ERROR(command);
+                    }
+                } else {
+                    ERROR(command);
+                }
+                END(command);
                 break;
-            case LOGIN:
-                break;
-            case REFRESH:
-                break;
-            case BROADCAST:
-                break;
-            case BLOCK:
-                break;
-            case UNBLOCK:
-                break;
-            case LOGOUT:
-                break;
-            case EXIT:
-                break;
-            case SENDFILE:
-                break;
-            case UNKNOWN:
+            }
+            case server::UNKNOWN:
                 break;
         }
     }
-    catch (const std::out_of_range &oor) {
-        DEBUG_MSG("Out of Range error: " << oor.what());
+    catch (const std::exception &e) {
+        DEBUG_MSG("Error: " << e.what());
     }
 }
 
-std::vector<Server::client_info> Server::sorted_clients() const {
-    std::vector<client_info> clients_v;
-    for (std::map<std::string, client_info_type >::const_iterator it = clients.begin();
+std::vector<ClientInfo> Server::sorted_clients() const {
+    std::vector<ClientInfo> clients_v;
+    for (std::map<client_key, client_info_ptype>::const_iterator it = clients.begin();
          it != clients.end(); ++it) {
         clients_v.push_back(*(it->second));
     };
@@ -288,64 +265,120 @@ std::vector<Server::client_info> Server::sorted_clients() const {
     return clients_v;
 }
 
-std::vector<std::string> Server::split_by_space(const std::string s) const {
-    std::stringstream ss(s);
-    std::istream_iterator<std::string> begin(ss);
-    std::istream_iterator<std::string> end;
-    std::vector<std::string> v(begin, end);
-    return v;
-}
-
-const std::string Server::primary_ip() {
-    int sock_fd;
-    struct addrinfo *result, *temp;
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_DGRAM;
-
-    int getaddrinfo_result;
-    if ((getaddrinfo_result = getaddrinfo("8.8.8.8", "53", &hints, &result)) != 0) {
-        DEBUG_MSG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
-        return EMPTY_STRING;
-    }
-
-    for (temp = result; temp != NULL; temp = temp->ai_next) {
-        sock_fd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
-        if (sock_fd == -1) {
-            close(server_sockfd);
-            continue;
-        }
-        break;
-    }
-
-    if (temp == NULL) {
-        DEBUG_MSG("Cannot create a socket; errno:" << errno);
-        return EMPTY_STRING;
-    }
-
-    freeaddrinfo(result);
-
-    if (connect(sock_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
-        DEBUG_MSG("Cannot connect on: " << sock_fd << "; errno: " << errno);
-        return EMPTY_STRING;
-    }
-
-    struct sockaddr_storage in;
-    socklen_t in_len = sizeof(in);
-
-    if (getsockname(sock_fd, (struct sockaddr *) &in, &in_len) == -1) {
-        DEBUG_MSG("Cannot getsockname on: " << sock_fd << "; errno: " << errno);
-        return EMPTY_STRING;
-    }
-
-    close(sock_fd);
-    return get_ip(in);
-}
 
 Server::~Server() {
-    for (std::map<std::string, client_info_type >::const_iterator it = clients.begin();
+    for (std::map<client_key, client_info_ptype>::const_iterator it = clients.begin();
          it != clients.end(); ++it) {
         delete it->second;
     };
+}
+
+void Server::client_command(std::string command_str, ClientInfo *client) {
+    std::vector<std::string> command_v = util::split_by_space(command_str);
+    try {
+        std::string command = command_v.at(0);
+        switch (client_server::parse_command(command)) {
+            case client_server::LOGIN: {
+                client->client_port = command_v.at(1);
+                client->status = LOGGED_IN;
+
+                std::stringstream ss;
+                ss << client_server::command_str(client_server::LOGIN) << COMMAND_SEPARATOR << client->ip << std::endl;
+                ClientInfo::serilaizeTo(&ss, clients);
+                util::sendString(client->sockfd, ss.str());
+
+                log_relay(client);
+                break;
+            }
+            case client_server::REFRESH: {
+                std::stringstream ss;
+                ss << client_server::command_str(client_server::REFRESH) << COMMAND_SEPARATOR << client->ip <<
+                std::endl;
+                ClientInfo::serilaizeTo(&ss, clients);
+                util::sendString(client->sockfd, ss.str());
+
+                log_relay(client);
+                break;
+            }
+            case client_server::SEND: {
+                std::string ip = command_v.at(1);
+                if (util::valid_inet(ip)) {
+                    const client_key *client_with_ip = util::get_by_ip(ip, clients);
+                    if (client_with_ip != NULL) {
+                        client_info_ptype to = clients[*client_with_ip];
+                        if ((to->blocked_ips.count(client->ip) == 0)) {
+                            if (send_client_command(to, client_server::SEND, ip, command_v.at(2))) {
+                                relay(client->ip, ip, command_v.at(2));
+                            } else {
+                                to->messages.push_back(std::make_pair(client->ip, command_v.at(2)));
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            case client_server::BROADCAST: {
+                bool sent = false;
+                for (std::map<client_key, client_info_ptype>::iterator it = clients.begin();
+                     it != clients.end(); ++it) {
+                    if (it->second != client) {
+                        if (it->second->blocked_ips.count(client->ip) == 0) {
+                            if (send_client_command(it->second, client_server::BROADCAST, command_v.at(1))) {
+                                sent = true;
+                            } else {
+                                it->second->messages.push_back(std::make_pair("255.255.255.255", command_v.at(2)));
+                            }
+                        }
+                    }
+                };
+                relay(client->ip, "255.255.255.255", command_v.at(1));
+                break;
+            }
+            case client_server::BLOCK:
+                break;
+            case client_server::UNBLOCK:
+                break;
+            case client_server::LOGOUT:
+                break;
+
+            case client_server::UNKNOWN:
+                break;
+        }
+    }
+    catch (const std::exception &e) {
+        DEBUG_MSG("Error: " << e.what());
+    }
+
+}
+
+void Server::log_relay(const ClientInfo *client) const {
+    if (!client->messages.empty()) {
+        for (std::deque<std::pair<std::string, std::string> >::const_iterator it = client->messages.begin();
+             it != client->messages.end(); ++it) {
+            relay(it->first, client->ip, it->second);
+        }
+    }
+}
+
+bool Server::send_client_command(client_info_ptype client,
+                                 client_server::command c,
+                                 std::string argv1,
+                                 std::string argv2) {
+    if (client->status == LOGGED_IN) {
+        std::stringstream ss;
+        const std::string command = command_str(c);
+        ss << command;
+        if (!argv1.empty()) {
+            ss << COMMAND_SEPARATOR << argv1;
+        }
+        if (!argv2.empty()) {
+            ss << COMMAND_SEPARATOR << argv2;
+        }
+        if (util::sendString(client->sockfd, ss.str()) == -1) {
+            DEBUG_MSG("Cannot send " << command << " to server error: " << errno);
+        } else {
+            return true;
+        }
+    }
+    return false;
 }

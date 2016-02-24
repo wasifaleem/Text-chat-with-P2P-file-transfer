@@ -13,5 +13,9 @@ void cse4589_print_and_log(const char* format, ...);
 #define SUCCESS(command) cse4589_print_and_log("[%s:SUCCESS]\n", command.c_str());
 #define ERROR(command) cse4589_print_and_log("[%s:ERROR]\n", command.c_str());
 #define END(command) cse4589_print_and_log("[%s:END]\n", command.c_str());
+#define RELAYED_SUCCESS cse4589_print_and_log("[RELAYED:SUCCESS]\n");
+#define RELAYED_END cse4589_print_and_log("[RELAYED:END]\n");
+#define RECEIVED_SUCCESS cse4589_print_and_log("[RECEIVED:SUCCESS]\n");
+#define RECEIVED_END cse4589_print_and_log("[RECEIVED:END]\n");
 
 #endif

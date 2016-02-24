@@ -5,6 +5,7 @@
 #define PATH_LEN 256
 
 #define SERVER_BACKLOG 10
+#define SERVER_MSG_LEN 10000
 #define MSG_LEN 256
 #define COMMAND_SEPARATOR ' '
 #define UBIT_NAME "wasifale"

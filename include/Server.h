@@ -4,39 +4,26 @@
 #include <netdb.h>
 #include <string>
 #include <map>
+#include <set>
 #include <vector>
 #include <global.h>
+#include <../include/ClientInfo.h>
+#include "command.h"
 
 class Server {
 public:
     Server(const char *port);
+
     ~Server();
+
     void start();
 
 private:
-    enum client_status {
-        ONLINE, OFFLINE
-    };
-
-    class client_info {
-    public:
-        int sockfd;
-        std::string ip, host, service;
-        int receive_count, sent_count;
-        client_status status;
-
-        bool operator<(const client_info &c) const {
-            return service.compare(c.service) < 0;
-        }
-    };
-
-    typedef client_info *client_info_type;
-
     const char *port;
     int server_sockfd, max_fd;
     struct addrinfo server_addrinfo;
     fd_set read_fd, all_fd;
-    std::map<std::string, client_info_type> clients;
+    std::map<client_key, client_info_ptype> clients;
 
     void bindListen();
 
@@ -44,25 +31,29 @@ private:
 
     void newClient(int fd, sockaddr_storage addr, socklen_t len);
 
-    const std::string primary_ip();
+    void cli_command(std::string command_str);
 
-    const std::string get_ip(sockaddr_storage addr) const;
+    void client_command(std::string command, ClientInfo *client);
 
-    std::vector<std::string> split_by_space(const std::string s) const;
-
-    void command(std::string command_str, Server::client_info *cinfo);
-
-    std::vector<client_info> sorted_clients() const;
+    std::vector<ClientInfo> sorted_clients() const;
 
     const char *status(client_status cs) {
         switch (cs) {
-            case ONLINE:
+            case LOGGED_IN:
                 return "online";
             case OFFLINE:
                 return "offline";
+            default:
+                return "UNKNOWN";
         }
-        return "UNKNOWN";
     }
+
+    void log_relay(const ClientInfo *client) const;
+
+    bool send_client_command(client_info_ptype client,
+                             client_server::command command,
+                             std::string argv1 = "",
+                             std::string argv2 = "");
 };
 
 
