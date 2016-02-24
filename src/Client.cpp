@@ -303,7 +303,7 @@ bool Client::do_login(std::string ip, std::string port) {
 
         logged_in = true;
 
-        return send_server_command(client_server::LOGIN, port);
+        return send_server_command(client_server::LOGIN, std::string(this->port));
     }
     return false;
 }
@@ -353,7 +353,7 @@ void Client::server_command(std::string command_data) {
                 break;
             }
             case client_server::BROADCAST:
-                received("255.255.255.255", command_v.at(2));
+                received("255.255.255.255", command_v.at(1));
                 break;
             case client_server::BLOCK:
                 break;
@@ -376,9 +376,9 @@ void Client::log_recieved(std::string ip) {
     if (me != NULL) {
         ClientInfo *c = clients_from_server[*me];
         if (!(c)->messages.empty()) {
-            for (std::deque<std::pair<std::string, std::string> >::const_iterator it = c->messages.begin();
+            for (std::deque<std::pair<client_key, std::string> >::const_iterator it = c->messages.begin();
                  it != c->messages.end(); ++it) {
-                received(it->first, it->second);
+                received(it->first.ip, it->second);
             }
         }
     }

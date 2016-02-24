@@ -8,7 +8,7 @@ OBJ_PATH  = $(patsubst $(SRC_DIR)/%,$(OBJ_DIR)/%,$(OBJ_FILES))
 
 LIBS	= 
 CC	= /usr/bin/g++
-CFLAGS	= -g -Wall -DDEBUG -lboost_serialization -I$(INC_DIR)
+CFLAGS	= -g -Wall -lboost_serialization -I$(INC_DIR)
 
 all: assignment1
 

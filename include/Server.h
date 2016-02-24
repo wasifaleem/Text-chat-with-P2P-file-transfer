@@ -33,7 +33,7 @@ private:
 
     void cli_command(std::string command_str);
 
-    void client_command(std::string command, ClientInfo *client);
+    void client_command(std::string command, const client_key key,  ClientInfo *client);
 
     std::vector<ClientInfo> sorted_clients() const;
 
@@ -48,7 +48,7 @@ private:
         }
     }
 
-    void log_relay(const ClientInfo *client) const;
+    void log_relay(ClientInfo *client) const;
 
     bool send_client_command(client_info_ptype client,
                              client_server::command command,

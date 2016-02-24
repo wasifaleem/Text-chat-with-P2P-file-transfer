@@ -123,7 +123,7 @@ void Server::selectLoop() {
                     if ((bytes_read_count = recv((*it->second).sockfd, buffer, sizeof buffer, 0)) > 0) {
                         std::string msg_recvd = std::string(&buffer[0], (unsigned long) bytes_read_count);
                         DEBUG_MSG("RECV from " << it->first << " " << msg_recvd);
-                        client_command(msg_recvd, it->second);
+                        client_command(msg_recvd, it->first, it->second);
                     } else {
                         if (bytes_read_count == 0) {
                             DEBUG_MSG("Client connection closed normally " << "fd:" << (*it->second).sockfd <<
@@ -273,7 +273,7 @@ Server::~Server() {
     };
 }
 
-void Server::client_command(std::string command_str, ClientInfo *client) {
+void Server::client_command(std::string command_str, const client_key key, ClientInfo *client) {
     std::vector<std::string> command_v = util::split_by_space(command_str);
     try {
         std::string command = command_v.at(0);
@@ -303,11 +303,13 @@ void Server::client_command(std::string command_str, ClientInfo *client) {
             case client_server::SEND: {
                 std::string ip = command_v.at(1);
                 if (util::valid_inet(ip)) {
-                    const client_key *client_with_ip = util::get_by_ip(ip, clients);
+                    const client_key *client_with_ip = util::get_by_ip(ip, clients); // TODO: pass port with command
                     if (client_with_ip != NULL) {
                         client_info_ptype to = clients[*client_with_ip];
                         if ((to->blocked_ips.count(client->ip) == 0)) {
                             if (send_client_command(to, client_server::SEND, ip, command_v.at(2))) {
+                                client->sent_count++;
+                                to->receive_count++;
                                 relay(client->ip, ip, command_v.at(2));
                             } else {
                                 to->messages.push_back(std::make_pair(client->ip, command_v.at(2)));
@@ -321,10 +323,12 @@ void Server::client_command(std::string command_str, ClientInfo *client) {
                 bool sent = false;
                 for (std::map<client_key, client_info_ptype>::iterator it = clients.begin();
                      it != clients.end(); ++it) {
-                    if (it->second != client) {
+                    if (!(it->first == key)) {
                         if (it->second->blocked_ips.count(client->ip) == 0) {
                             if (send_client_command(it->second, client_server::BROADCAST, command_v.at(1))) {
                                 sent = true;
+                                it->second->receive_count++;
+                                client->sent_count++;
                             } else {
                                 it->second->messages.push_back(std::make_pair("255.255.255.255", command_v.at(2)));
                             }
@@ -351,11 +355,13 @@ void Server::client_command(std::string command_str, ClientInfo *client) {
 
 }
 
-void Server::log_relay(const ClientInfo *client) const {
+void Server::log_relay(ClientInfo *client) const {
     if (!client->messages.empty()) {
-        for (std::deque<std::pair<std::string, std::string> >::const_iterator it = client->messages.begin();
+        for (std::deque<std::pair<client_key, std::string> >::const_iterator it = client->messages.begin();
              it != client->messages.end(); ++it) {
-            relay(it->first, client->ip, it->second);
+            clients[it->first]->sent_count++;
+            client->receive_count++;
+            relay(it->first.ip, client->ip, it->second);
         }
     }
 }
