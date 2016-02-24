@@ -312,7 +312,7 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                                 to->receive_count++;
                                 relay(client->ip, ip, command_v.at(2));
                             } else {
-                                to->messages.push_back(std::make_pair(client->ip, command_v.at(2)));
+                                to->messages.push_back(std::make_pair(key, command_v.at(2)));
                             }
                         }
                     }
@@ -330,7 +330,7 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                                 it->second->receive_count++;
                                 client->sent_count++;
                             } else {
-                                it->second->messages.push_back(std::make_pair("255.255.255.255", command_v.at(2)));
+                                it->second->messages.push_back(std::make_pair(key, command_v.at(2)));
                             }
                         }
                     }
@@ -355,11 +355,11 @@ void Server::client_command(std::string command_str, const client_key key, Clien
 
 }
 
-void Server::log_relay(ClientInfo *client) const {
+void Server::log_relay(ClientInfo *client) {
     if (!client->messages.empty()) {
         for (std::deque<std::pair<client_key, std::string> >::const_iterator it = client->messages.begin();
              it != client->messages.end(); ++it) {
-            clients[it->first]->sent_count++;
+            (clients[it->first])->sent_count++;
             client->receive_count++;
             relay(it->first.ip, client->ip, it->second);
         }

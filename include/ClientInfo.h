@@ -21,6 +21,15 @@ struct client_key {
     std::string ip;
     int sockfd;
 
+    bool operator<(const client_key &o) const {
+        int ip_compare = ip.compare(o.ip);
+        return ip_compare < 0 || (ip_compare == 0 && sockfd < o.sockfd);
+    }
+
+    bool operator==(const client_key &o) const {
+        return ip.compare(o.ip) == 0 && sockfd == o.sockfd;
+    }
+
     friend class boost::serialization::access;
 
     friend std::ostream &operator<<(std::ostream &os, const client_key &ci) {
@@ -32,15 +41,6 @@ struct client_key {
         ar & ip & sockfd;
     }
 };
-
-bool operator<(const client_key &o1, const client_key &o2) {
-    int ip_compare = o1.ip.compare(o2.ip);
-    return ip_compare < 0 || (ip_compare == 0 && o1.sockfd < o2.sockfd);
-}
-
-bool operator==(const client_key &o1, const client_key &o2) {
-    return o1.ip.compare(o2.ip) == 0 && o1.sockfd == o2.sockfd;
-}
 
 class ClientInfo {
 public:

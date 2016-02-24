@@ -48,7 +48,7 @@ private:
         }
     }
 
-    void log_relay(ClientInfo *client) const;
+    void log_relay(ClientInfo *client);
 
     bool send_client_command(client_info_ptype client,
                              client_server::command command,
