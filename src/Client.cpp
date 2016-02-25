@@ -165,15 +165,14 @@ void Client::new_p2p_file_client(int fd, sockaddr_storage addr, socklen_t len) {
     if (p2p_clients.count(key) == 0) {
         p2p_client_ptype p2p_file = new p2p_client();
         p2p_clients[key] = p2p_file;
-    } else {
-        p2p_client_ptype p2p_file = p2p_clients[key];
-        (*p2p_file).sock_fd = key.sockfd;
-        DEBUG_MSG("p2p request from client " << key);
+    }
+    p2p_client_ptype p2p_file = p2p_clients[key];
+    (*p2p_file).sock_fd = key.sockfd;
+    DEBUG_MSG("p2p request from client " << key);
 
-        FD_SET(fd, &all_fd); // add new client to our set
-        if (max_fd < fd) { // update max_fd
-            max_fd = fd;
-        }
+    FD_SET(fd, &all_fd); // add new client to our set
+    if (max_fd < fd) { // update max_fd
+        max_fd = fd;
     }
 }
 
