@@ -14,9 +14,9 @@
 #include <arpa/inet.h>
 #include <algorithm>
 #include "command.h"
-#include <fcntl.h>
-#include <sys/sendfile.h>
-#include <sys/stat.h>
+//#include <fcntl.h>
+//#include <sys/sendfile.h>
+//#include <sys/stat.h>
 
 Client::Client(const char *portNum) : port(portNum) {
     me = client_key();
@@ -548,59 +548,59 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
     freeaddrinfo(result);
 
     if (p2p_client_fd != 0) {
-        std::stringstream ss;
-        ss << "FILE_NAME " << file_name << std::endl;
-        std::string header = ss.str();
-
-        struct stat stat_b;
-        int fd = open(file_name.c_str(), O_RDONLY);
-        if (fd != -1) {
-            fstat(fd, &stat_b);
-            util::send_string(p2p_client_fd, header);
-
-            off_t offset = 0;
-            ssize_t total = 0, sent = 0;
-            while (total < stat_b.st_size) {
-                if ((sent = sendfile(p2p_client_fd, fd, &offset, stat_b.st_size - total)) <= 0) {
-                    if (errno == EINTR || errno == EAGAIN) {
-                        continue;
-                    }
-                }
-                total += sent;
-            }
-            if (total == stat_b.st_size) {
-                return true;
-            }
-        }
-        close(p2p_client_fd);
-//        long size;
-//        char *buff;
-//        std::ifstream file(file_name.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
-//        if (file.is_open()) {
-//            size = file.tellg();
+//        std::stringstream ss;
+//        ss << "FILE_NAME " << file_name << std::endl;
+//        std::string header = ss.str();
 //
-//            std::stringstream ss;
-//            ss << "FILE_NAME " << file_name << std::endl;
-//            std::string header = ss.str();
+//        struct stat stat_b;
+//        int fd = open(file_name.c_str(), O_RDONLY);
+//        if (fd != -1) {
+//            fstat(fd, &stat_b);
+//            util::send_string(p2p_client_fd, header);
 //
-//            buff = new char[size + header.length()];
-//            strcpy(buff, header.c_str());
-//
-//            file.seekg(0, std::ios::beg);
-//            file.read(buff + header.length(), size);
-//            file.close();
-//
-//            DEBUG_MSG("Loaded file");
-//            DEBUG_MSG("Header file " << header);
-//            bool sent = false;
-//            if (util::send_buff(p2p_client_fd, buff, size + header.length())) {
-//                DEBUG_MSG("Sent file");
-//                sent = true;
+//            off_t offset = 0;
+//            ssize_t total = 0, sent = 0;
+//            while (total < stat_b.st_size) {
+//                if ((sent = sendfile(p2p_client_fd, fd, &offset, stat_b.st_size - total)) <= 0) {
+//                    if (errno == EINTR || errno == EAGAIN) {
+//                        continue;
+//                    }
+//                }
+//                total += sent;
 //            }
-//            delete[] buff;
-//            close(p2p_client_fd);
-//            return sent;
+//            if (total == stat_b.st_size) {
+//                return true;
+//            }
 //        }
+//        close(p2p_client_fd);
+        long size;
+        char *buff;
+        std::ifstream file(file_name.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+        if (file.is_open()) {
+            size = file.tellg();
+
+            std::stringstream ss;
+            ss << "FILE_NAME " << file_name << std::endl;
+            std::string header = ss.str();
+
+            buff = new char[size + header.length()];
+            strcpy(buff, header.c_str());
+
+            file.seekg(0, std::ios::beg);
+            file.read(buff + header.length(), size);
+            file.close();
+
+            DEBUG_MSG("Loaded file");
+            DEBUG_MSG("Header file " << header);
+            bool sent = false;
+            if (util::send_buff(p2p_client_fd, buff, size + header.length())) {
+                DEBUG_MSG("Sent file");
+                sent = true;
+            }
+            delete[] buff;
+            close(p2p_client_fd);
+            return sent;
+        }
     }
     return false;
 }
@@ -621,7 +621,6 @@ void Client::save_received_file(const client_key key, Client::p2p_client_ptype c
     std::vector<std::string> header = util::split_by_space(header_line);
     if (header.size() == 2 && header[0].compare("FILE_NAME") == 0) {
         std::ofstream os(header[1].c_str(), std::ios::binary | std::ios::out | std::ios::trunc);
-//        os << (client->file_data + header_end_pos);
         os.write((client->file_data + header_end_pos), client->received_size - header_end_pos);
         os.close();
         DEBUG_MSG("RECEIVED file: " << header[1]);
