@@ -28,7 +28,7 @@ namespace util {
         return send_buff(sock_fd, data.c_str(), data.length());
     }
 
-    const bool send_buff(int sock_fd, const char *buf, size_t size) {
+    const bool send_buff(int sock_fd, const char *buf, unsigned long size) {
         unsigned long total = 0;
         unsigned long bytes_remaining = size;
         ssize_t n = 0;
