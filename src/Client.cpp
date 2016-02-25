@@ -530,7 +530,7 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
             strcpy(buff, header.c_str());
 
             file.seekg(0, std::ios::beg);
-            file.read(buff, size);
+            file.read(buff + header.length(), size);
             file.close();
 
             DEBUG_MSG("Loaded file");
