@@ -333,7 +333,8 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                                 it->second->receive_count++;
                                 client->sent_count++;
                             } else {
-                                it->second->messages.push_back(std::make_pair(key, msg));
+                                it->second->messages.push_back(
+                                        std::make_pair(client_key("255.255.255.255", key.sockfd), msg));
                             }
                         }
                     }
