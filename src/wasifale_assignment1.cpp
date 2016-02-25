@@ -59,6 +59,7 @@ int main(int argc, char **argv) {
         case 'c': {
             Client client(argv[2]);
             client.start();
+            return 0;
         }
         default: {
             cout << "Usage: ./assignment1 c/s port" << endl;
