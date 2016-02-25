@@ -9,6 +9,7 @@
 
 Client::Client(const char *portNum) : port(portNum) {
     me = client_key();
+    logged_in = false;
 }
 
 void Client::start() {
@@ -38,7 +39,7 @@ void Client::do_bind_listen() {
             continue;
 
         if (setsockopt(p2p_listen_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << p2p_listen_sockfd << " ;errono:" << errno);
+            DEBUG_LOG("Cannot setsockopt() on: " << p2p_listen_sockfd << " ;errono:" << strerror(errno));
             close(p2p_listen_sockfd);
             continue;
         }
@@ -51,7 +52,7 @@ void Client::do_bind_listen() {
     }
 
     if (temp == NULL) {
-        DEBUG_LOG("Cannot find a socket to bind to; errno:" << errno);
+        DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
         exit(EXIT_FAILURE);
     } else {
         p2p_listen_addrinfo = *temp;
@@ -60,7 +61,7 @@ void Client::do_bind_listen() {
     freeaddrinfo(result);
 
     if (listen(p2p_listen_sockfd, SERVER_BACKLOG) == -1) {
-        DEBUG_LOG("Cannot listen on: " << p2p_listen_sockfd << "; errno: " << errno);
+        DEBUG_LOG("Cannot listen on: " << p2p_listen_sockfd << "; errno: " << strerror(errno));
         exit(EXIT_FAILURE);
     }
 }
@@ -85,7 +86,7 @@ void Client::select_loop() {
     while (true) {
         read_fd = all_fd;
         if (select(max_fd + 1, &read_fd, NULL, NULL, NULL) == -1) {
-            DEBUG_LOG("SELECT; errorno:" << errno);
+            DEBUG_LOG("SELECT; errorno:" << strerror(errno));
             exit(EXIT_FAILURE);
         } else {
             // read stdin
@@ -94,7 +95,7 @@ void Client::select_loop() {
                     std::string command_str = std::string(&buffer[0], (unsigned long) bytes_read_count);
                     cli_command(command_str);
                 } else {
-                    DEBUG_LOG("STDIN " << " errorno:" << errno);
+                    DEBUG_LOG("STDIN " << " errorno:" << strerror(errno));
                 }
             }
 
@@ -106,12 +107,12 @@ void Client::select_loop() {
                     server_command(command_str);
                 } else {
                     if (bytes_read_count == 0) {
-                        DEBUG_LOG("Server connection closed normally " << " errorno:" << errno);
+                        DEBUG_LOG("Server connection closed normally " << " errorno:" << strerror(errno));
                         logged_in = false;
                         close(server_sockfd);
                         FD_CLR(server_sockfd, &all_fd);
                     } else {
-                        DEBUG_LOG("RECV " << "fd:" << server_sockfd << " errorno:" << errno);
+                        DEBUG_LOG("RECV " << "fd:" << server_sockfd << " errorno:" << strerror(errno));
                     }
                 }
             }
@@ -121,7 +122,7 @@ void Client::select_loop() {
                 if ((new_client_fd = accept(p2p_listen_sockfd,
                                             (struct sockaddr *) &new_client_addr,
                                             &new_client_addr_len)) < 0) {
-                    DEBUG_LOG("ACCEPT " << "fd:" << new_client_fd << " errorno:" << errno);
+                    DEBUG_LOG("ACCEPT " << "fd:" << new_client_fd << " errorno:" << strerror(errno));
                 } else {
                     new_p2p_file_client(new_client_fd, new_client_addr, new_client_addr_len);
                 }
@@ -149,7 +150,7 @@ void Client::select_loop() {
                             FD_CLR((*it->second).sock_fd, &all_fd);
                             p2p_clients.erase(it->first);
                         } else {
-                            DEBUG_LOG("RECV " << "fd:" << (*it->second).sock_fd << " errorno:" << errno);
+                            DEBUG_LOG("RECV " << "fd:" << (*it->second).sock_fd << " errorno:" << strerror(errno));
                         }
                     }
                 }
@@ -242,7 +243,6 @@ void Client::cli_command(std::string command_str) {
                 } else {
                     ERROR(command);
                 }
-
                 END(command);
                 break;
             }
@@ -351,14 +351,14 @@ bool Client::do_login(std::string ip, std::string port) {
                 continue;
 
             if (setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-                DEBUG_LOG("Cannot setsockopt() on: " << server_sockfd << " ;errono:" << errno);
+                DEBUG_LOG("Cannot setsockopt() on: " << server_sockfd << " ;errono:" << strerror(errno));
                 close(server_sockfd);
                 continue;
             }
 
             if (connect(server_sockfd, temp->ai_addr, temp->ai_addrlen) == -1) {
                 close(server_sockfd);
-                DEBUG_LOG("Cannot connect to server errno:" << errno);
+                DEBUG_LOG("Cannot connect to server errno:" << strerror(errno));
                 continue;
             }
 
@@ -367,7 +367,7 @@ bool Client::do_login(std::string ip, std::string port) {
         }
 
         if (temp == NULL) {
-            DEBUG_LOG("Cannot find a socket to bind to; errno:" << errno);
+            DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
             return false;
         }
         freeaddrinfo(result);
@@ -399,7 +399,7 @@ bool Client::send_server_command(client_server::command c, std::string arg1, std
             DEBUG_LOG("SENT " << command << " to server");
             return true;
         } else {
-            DEBUG_LOG("Cannot send " << command << " to server error: " << errno);
+            DEBUG_LOG("Cannot send " << command << " to server error: " << strerror(errno));
         }
     }
     return false;
@@ -509,21 +509,21 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
             continue;
 
         if (setsockopt(p2p_client_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << errno);
+            DEBUG_LOG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << strerror(errno));
             close(p2p_client_fd);
             continue;
         }
 
         struct linger l = {1, 60 * 2};
         if (setsockopt(p2p_client_fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << errno);
+            DEBUG_LOG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << strerror(errno));
             close(p2p_client_fd);
             continue;
         }
 
         if (connect(p2p_client_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
             close(p2p_client_fd);
-            DEBUG_LOG("Cannot connect to p2p errno:" << errno);
+            DEBUG_LOG("Cannot connect to p2p errno:" << strerror(errno));
             continue;
         }
 
@@ -531,7 +531,7 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
     }
 
     if (temp == NULL) {
-        DEBUG_LOG("Cannot find a socket to bind to; errno:" << errno);
+        DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
         return false;
     }
     freeaddrinfo(result);

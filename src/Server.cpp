@@ -43,7 +43,7 @@ void Server::do_bind_listen() {
             continue;
 
         if (setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << server_sockfd << " ;errono:" << errno);
+            DEBUG_LOG("Cannot setsockopt() on: " << server_sockfd << " ;errono:" << strerror(errno));
             close(server_sockfd);
             continue;
         }
@@ -56,7 +56,7 @@ void Server::do_bind_listen() {
     }
 
     if (temp == NULL) {
-        DEBUG_LOG("Cannot find a socket to bind to; errno:" << errno);
+        DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
         exit(EXIT_FAILURE);
     } else {
         server_addrinfo = *temp;
@@ -65,7 +65,7 @@ void Server::do_bind_listen() {
     freeaddrinfo(result);
 
     if (listen(server_sockfd, SERVER_BACKLOG) == -1) {
-        DEBUG_LOG("Cannot listen on: " << server_sockfd << "; errno: " << errno);
+        DEBUG_LOG("Cannot listen on: " << server_sockfd << "; errno: " << strerror(errno));
         exit(EXIT_FAILURE);
     }
 }
@@ -90,7 +90,7 @@ void Server::select_loop() {
     while (true) {
         read_fd = all_fd;
         if (select(max_fd + 1, &read_fd, NULL, NULL, NULL) == -1) {
-            DEBUG_LOG("SELECT; errorno:" << errno);
+            DEBUG_LOG("SELECT; errorno:" << strerror(errno));
             exit(EXIT_FAILURE);
         } else {
             // read stdin
@@ -99,7 +99,7 @@ void Server::select_loop() {
                     std::string command_str = std::string(&buffer[0], (unsigned long) bytes_read_count);
                     cli_command(command_str);
                 } else {
-                    DEBUG_LOG("STDIN " << " errorno:" << errno);
+                    DEBUG_LOG("STDIN " << " errorno:" << strerror(errno));
                 }
             }
 
@@ -108,7 +108,7 @@ void Server::select_loop() {
                 if ((new_client_fd = accept(server_sockfd,
                                             (struct sockaddr *) &new_client_addr,
                                             &new_client_addr_len)) < 0) {
-                    DEBUG_LOG("ACCEPT " << "fd:" << new_client_fd << " errorno:" << errno);
+                    DEBUG_LOG("ACCEPT " << "fd:" << new_client_fd << " errorno:" << strerror(errno));
                 } else {
                     new_client(new_client_fd, new_client_addr, new_client_addr_len);
                 }
@@ -128,7 +128,7 @@ void Server::select_loop() {
                             close((*it->second).sockfd);
                             FD_CLR((*it->second).sockfd, &all_fd);
                         } else {
-                            DEBUG_LOG("RECV " << "fd:" << (*it->second).sockfd << " errorno:" << errno);
+                            DEBUG_LOG("RECV " << "fd:" << (*it->second).sockfd << " errorno:" << strerror(errno));
                         }
                     }
                 }
@@ -406,7 +406,7 @@ bool Server::send_client_command(client_info_ptype client,
         if (util::send_string(client->sockfd, ss.str())) {
             return true;
         } else {
-            DEBUG_LOG("Cannot send " << command << " to server error: " << errno);
+            DEBUG_LOG("Cannot send " << command << " to server error: " << strerror(errno));
         }
     }
     return false;
