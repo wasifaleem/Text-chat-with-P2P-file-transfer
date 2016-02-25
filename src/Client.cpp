@@ -572,6 +572,7 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
                 return true;
             }
         }
+        close(p2p_client_fd);
 //        long size;
 //        char *buff;
 //        std::ifstream file(file_name.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
@@ -620,7 +621,8 @@ void Client::save_received_file(const client_key key, Client::p2p_client_ptype c
     std::vector<std::string> header = util::split_by_space(header_line);
     if (header.size() == 2 && header[0].compare("FILE_NAME") == 0) {
         std::ofstream os(header[1].c_str(), std::ios::binary | std::ios::out | std::ios::trunc);
-        os << (client->file_data + header_end_pos);
+//        os << (client->file_data + header_end_pos);
+        os.write((client->file_data + header_end_pos), client->received_size - header_end_pos);
         os.close();
         DEBUG_MSG("RECEIVED file: " << header[1]);
     }
