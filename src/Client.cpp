@@ -557,13 +557,14 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
 
             DEBUG_MSG("Loaded file");
             DEBUG_MSG("Header file " << header);
+            bool sent = false;
             if (util::send_buff(p2p_client_fd, buff, size + header.length())) {
                 DEBUG_MSG("Sent file");
-                return true;
+                sent =  true;
             }
             delete[] buff;
-            DEBUG_MSG("Sent file");
-//            close(p2p_client_fd);
+            close(p2p_client_fd);
+            return sent;
         }
     }
     return false;
