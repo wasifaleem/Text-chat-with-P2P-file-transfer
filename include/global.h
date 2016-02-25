@@ -17,7 +17,7 @@
 #endif
 
 #ifdef DEBUG
-#define DEBUG_MSG(str) do { std::cout << str << std::endl; } while( false )
+#define DEBUG_LOG(str) do { std::cout << str << std::endl; } while( false )
 #else
-#define DEBUG_MSG(str) do { } while ( false )
+#define DEBUG_LOG(str) do { } while ( false )
 #endif

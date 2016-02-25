@@ -53,7 +53,7 @@ namespace util {
 
         int getaddrinfo_result;
         if ((getaddrinfo_result = getaddrinfo("8.8.8.8", "53", &hints, &result)) != 0) {
-            DEBUG_MSG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
+            DEBUG_LOG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
             return EMPTY_STRING;
         }
 
@@ -67,14 +67,14 @@ namespace util {
         }
 
         if (temp == NULL) {
-            DEBUG_MSG("Cannot create a socket; errno:" << errno);
+            DEBUG_LOG("Cannot create a socket; errno:" << errno);
             return EMPTY_STRING;
         }
 
         freeaddrinfo(result);
 
         if (connect(sock_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
-            DEBUG_MSG("Cannot connect on: " << sock_fd << "; errno: " << errno);
+            DEBUG_LOG("Cannot connect on: " << sock_fd << "; errno: " << errno);
             return EMPTY_STRING;
         }
 
@@ -82,7 +82,7 @@ namespace util {
         socklen_t in_len = sizeof(in);
 
         if (getsockname(sock_fd, (struct sockaddr *) &in, &in_len) == -1) {
-            DEBUG_MSG("Cannot getsockname on: " << sock_fd << "; errno: " << errno);
+            DEBUG_LOG("Cannot getsockname on: " << sock_fd << "; errno: " << errno);
             return EMPTY_STRING;
         }
 

@@ -10,7 +10,8 @@
 class Client {
 public:
     Client(const char *port);
-    virtual ~Client();
+
+    ~Client();
 
     void start();
 
@@ -18,9 +19,10 @@ private:
     struct p2p_client {
         int sock_fd;
         unsigned long received_size;
-        char * file_data;
+        char *file_data;
     };
     typedef p2p_client *p2p_client_ptype;
+
     const char *port;
     bool logged_in;
     client_key me;
@@ -31,9 +33,9 @@ private:
     struct addrinfo p2p_listen_addrinfo, server_addrinfo;
     fd_set read_fd, all_fd;
 
-    void bindListen();
+    void do_bind_listen();
 
-    void selectLoop();
+    void select_loop();
 
     bool do_login(std::string ip, std::string port);
 

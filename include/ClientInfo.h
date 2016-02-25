@@ -18,6 +18,8 @@ enum client_status {
     ONLINE, OFFLINE, LOGGED_IN
 };
 
+const char * status(client_status cs);
+
 struct client_key {
     std::string ip;
     int sockfd;
@@ -77,9 +79,9 @@ public:
         ar & ip & host & client_port & status & blocked_ips & messages;
     }
 
-    static void serializeTo(std::stringstream *ss, std::map<client_key, ClientInfo *>);
+    static void serialize_to(std::stringstream *ss, std::map<client_key, ClientInfo *>);
 
-    static std::map<client_key, ClientInfo *> deserializeFrom(std::istringstream *is);
+    static std::map<client_key, ClientInfo *> deserialize_from(std::istringstream *is);
 
 };
 
