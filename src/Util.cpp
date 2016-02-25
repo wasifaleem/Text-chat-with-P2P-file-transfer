@@ -33,22 +33,23 @@ namespace util {
         }
     }
 
-    const int sendString(int sock_fd, const std::string data) {
-        unsigned long length = data.length();
-        const char *buf = data.c_str();
+    const bool send_string(int sock_fd, const std::string data) {
+        return send_buff(sock_fd, data.c_str(), data.length());
+    }
 
-        unsigned int total = 0;        // how many bytes we've sent
-        unsigned int bytesleft = (unsigned int) length; // how many we have left to send
+    const bool send_buff(int sock_fd, const char *buf, unsigned long size) {
+        unsigned long total = 0;
+        unsigned long bytes_remaining = size;
         ssize_t n = 0;
 
-        while (total < length) {
-            n = send(sock_fd, buf + total, bytesleft, 0);
+        while (total < size) {
+            n = send(sock_fd, buf + total, bytes_remaining, 0);
             if (n == -1) { break; }
             total += n;
-            bytesleft -= n;
+            bytes_remaining -= n;
         }
 
-        return n == -1 ? -1 : 0; // return -1 on failure, 0 on success
+        return n != -1;
     }
 
     const std::string primary_ip() {

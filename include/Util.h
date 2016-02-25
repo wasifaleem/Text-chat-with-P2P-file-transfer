@@ -8,9 +8,9 @@
 
 namespace util {
     const bool valid_inet(const std::string ip);
-    const std::string get_ip(const sockaddr * addr);
     const std::string get_ip(const sockaddr_storage addr);
-    const int sendString(int sock_fd, const std::string data);
+    const bool send_string(int sock_fd, const std::string data);
+    const bool send_buff(int sock_fd, const char *buff, unsigned long size);
     const std::string primary_ip();
     const client_info_ptype find_by_ip(const std::string ip, std::map<client_key, client_info_ptype>);
 

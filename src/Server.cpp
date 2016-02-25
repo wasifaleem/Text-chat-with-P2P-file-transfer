@@ -111,7 +111,6 @@ void Server::selectLoop() {
                                             (struct sockaddr *) &new_client_addr,
                                             &new_client_addr_len)) < 0) {
                     DEBUG_MSG("ACCEPT " << "fd:" << new_client_fd << " errorno:" << errno);
-                    exit(EXIT_FAILURE);
                 } else {
                     newClient(new_client_fd, new_client_addr, new_client_addr_len);
                 }
@@ -126,9 +125,7 @@ void Server::selectLoop() {
                         client_command(msg_recvd, it->first, it->second);
                     } else {
                         if (bytes_read_count == 0) {
-                            DEBUG_MSG("Client connection closed normally " << "fd:" << (*it->second).sockfd <<
-                                      " errorno:" <<
-                                      errno);
+                            DEBUG_MSG("Client connection closed normally");
                             (*it->second).status = OFFLINE;
                             close((*it->second).sockfd);
                             FD_CLR((*it->second).sockfd, &all_fd);
@@ -287,7 +284,7 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                 << COMMAND_SEPARATOR << key.sockfd
                 << std::endl;
                 ClientInfo::serializeTo(&ss, clients);
-                util::sendString(client->sockfd, ss.str());
+                util::send_string(client->sockfd, ss.str());
 
                 log_relay(client);
                 break;
@@ -299,7 +296,7 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                 << COMMAND_SEPARATOR << key.sockfd
                 << std::endl;
                 ClientInfo::serializeTo(&ss, clients);
-                util::sendString(client->sockfd, ss.str());
+                util::send_string(client->sockfd, ss.str());
 
                 log_relay(client);
                 break;
@@ -404,10 +401,10 @@ bool Server::send_client_command(client_info_ptype client,
         if (!argv2.empty()) {
             ss << COMMAND_SEPARATOR << argv2;
         }
-        if (util::sendString(client->sockfd, ss.str()) == -1) {
-            DEBUG_MSG("Cannot send " << command << " to server error: " << errno);
-        } else {
+        if (util::send_string(client->sockfd, ss.str())) {
             return true;
+        } else {
+            DEBUG_MSG("Cannot send " << command << " to server error: " << errno);
         }
     }
     return false;

@@ -10,16 +10,22 @@
 class Client {
 public:
     Client(const char *port);
-    void start();
-
     virtual ~Client();
 
-private:
+    void start();
 
+private:
+    struct p2p_client {
+        int sock_fd;
+        std::string file_name;
+        unsigned long file_size;
+        bool read_header;
+    };
+    typedef p2p_client *p2p_client_ptype;
     const char *port;
     bool logged_in;
     client_key me;
-    std::map<client_key, client_info_ptype> p2p_clients;
+    std::map<client_key, p2p_client_ptype> p2p_clients;
     std::map<client_key, client_info_ptype> clients_from_server;
 
     int p2p_listen_sockfd, server_sockfd, max_fd;
@@ -27,17 +33,26 @@ private:
     fd_set read_fd, all_fd;
 
     void bindListen();
+
     void selectLoop();
+
     bool do_login(std::string ip, std::string port);
-    void newClient(int fd, sockaddr_storage addr, socklen_t len);
+
+    void new_p2p_file_client(int fd, sockaddr_storage addr, socklen_t len);
+
     void cli_command(std::string command_str);
+
     void server_command(std::string command_str);
 
     bool send_server_command(client_server::command c, std::string arg1 = "", std::string arg2 = "") const;
 
-    void log_recieved();
+    void log_received();
 
     const client_info_ptype find_me();
+
+    bool send_file(client_info_ptype const to_client, std::string file_name);
+
+    void p2p_client_command(std::string data, const client_key key, p2p_client_ptype client_ptype);
 };
 
 
