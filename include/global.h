@@ -7,6 +7,7 @@
 #define SERVER_BACKLOG 10
 #define SERVER_MSG_LEN 10000
 #define MSG_LEN 256
+#define MAX_FILE_SIZE 1024*1024*50
 #define COMMAND_SEPARATOR ' '
 #define SPACE ' '
 #define UBIT_NAME "wasifale"

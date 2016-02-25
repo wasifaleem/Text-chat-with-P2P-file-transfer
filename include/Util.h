@@ -16,6 +16,7 @@ namespace util {
 
     const std::string int_to_string(const int i);
     int str_to_int(const std::string& str);
+    long str_to_long(const std::string &str);
     const std::string join_by_space_from_pos(std::vector<std::string> v, int pos);
     const std::vector<std::string> split_by_space(const std::string s);
 

@@ -17,9 +17,8 @@ public:
 private:
     struct p2p_client {
         int sock_fd;
-        std::string file_name;
-        unsigned long file_size;
-        bool read_header;
+        unsigned long received_size;
+        char * file_data;
     };
     typedef p2p_client *p2p_client_ptype;
     const char *port;
@@ -52,7 +51,7 @@ private:
 
     bool send_file(client_info_ptype const to_client, std::string file_name);
 
-    void p2p_client_command(std::string data, const client_key key, p2p_client_ptype client_ptype);
+    void save_received_file(const client_key key, p2p_client_ptype client);
 };
 
 

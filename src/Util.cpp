@@ -123,6 +123,15 @@ namespace util {
         return i;
     }
 
+
+    long str_to_long(const std::string &str) {
+        long l;
+        std::istringstream ss(str);
+        ss.imbue(std::locale::classic());
+        ss >> l;
+        return l;
+    }
+
     const std::string join_by_space_from_pos(std::vector<std::string> v, int pos) {
         std::stringstream ss;
         int j = 0;

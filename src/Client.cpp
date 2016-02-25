@@ -139,16 +139,23 @@ void Client::selectLoop() {
             for (std::map<client_key, p2p_client_ptype>::iterator it = p2p_clients.begin();
                  it != p2p_clients.end(); ++it) {
                 if (FD_ISSET((*it->second).sock_fd, &read_fd)) {
-                    if ((bytes_read_count = recv((*it->second).sock_fd, buffer, sizeof buffer, 0)) > 0) {
-                        std::string msg_recvd = std::string(&buffer[0], (unsigned long) bytes_read_count);
-                        DEBUG_MSG("RECV from " << it->first << " " << msg_recvd);
-                        p2p_client_command(msg_recvd, it->first, it->second);
+                    if ((it->second)->file_data == NULL) {
+                        char *file_buffer = new char[MAX_FILE_SIZE];
+                        (*it->second).file_data = file_buffer;
+                        (*it->second).received_size = 0;
+                    }
+                    if ((bytes_read_count = recv(
+                            (*it->second).sock_fd, ((*it->second).file_data + (*it->second).received_size),
+                            (MAX_FILE_SIZE - (*it->second).received_size), 0)) > 0) {
+                        DEBUG_MSG("RECV from " << it->first);
+                        (*it->second).received_size += bytes_read_count;
                     } else {
                         if (bytes_read_count == 0) {
                             DEBUG_MSG("P2P Client connection closed normally ");
-                            p2p_clients.erase(it->first);
+                            save_received_file(it->first, it->second);
                             close((*it->second).sock_fd);
                             FD_CLR((*it->second).sock_fd, &all_fd);
+                            p2p_clients.erase(it->first);
                         } else {
                             DEBUG_MSG("RECV " << "fd:" << (*it->second).sock_fd << " errorno:" << errno);
                         }
@@ -517,15 +524,16 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
     freeaddrinfo(result);
 
     if (p2p_client_fd != 0) {
-        std::stringstream ss;
-        ss << "FILE_NAME: " << file_name;
-        std::streampos size;
+        long size;
         char *buff;
         std::ifstream file(file_name.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
         if (file.is_open()) {
             size = file.tellg();
-            ss << "FILE_SIZE: " << size << std::endl;
+
+            std::stringstream ss;
+            ss << "FILE_NAME " << file_name << std::endl;
             std::string header = ss.str();
+
             buff = new char[size + header.length()];
             strcpy(buff, header.c_str());
 
@@ -535,7 +543,7 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
 
             DEBUG_MSG("Loaded file");
             DEBUG_MSG("Header file " << header);
-            util::send_buff(p2p_client_fd, buff, size);
+            util::send_buff(p2p_client_fd, buff, size + header.length());
             delete[] buff;
             DEBUG_MSG("Sent file");
             close(p2p_client_fd);
@@ -545,6 +553,26 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
     return false;
 }
 
-void Client::p2p_client_command(std::string buff, const client_key key, Client::p2p_client_ptype pFile) {
-    DEBUG_MSG(buff);
+
+void Client::save_received_file(const client_key key, Client::p2p_client_ptype client) {
+
+    unsigned int header_end_pos = 0;
+    for (unsigned int i = 0; i < client->received_size; ++i) {
+        if (client->file_data[i] == '\n') {
+            header_end_pos = i + 1;
+            break;
+        }
+    }
+
+    std::string header_line = std::string(&client->file_data[0], (unsigned long) header_end_pos);
+
+    std::vector<std::string> header = util::split_by_space(header_line);
+    if (header.size() == 2 && header[0].compare("FILE_NAME") == 0) {
+        std::ofstream os(header[1].c_str(), std::ios::binary | std::ios::out | std::ios::trunc);
+        os << (client->file_data + header_end_pos);
+        os.close();
+        DEBUG_MSG("RECEIVED file: " << header[1]);
+    }
+
+    delete client->file_data;
 }
