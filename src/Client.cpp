@@ -522,6 +522,13 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
             continue;
         }
 
+        struct linger l = {1, 60 * 2};
+        if (setsockopt(p2p_client_fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l)) == -1) {
+            DEBUG_MSG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << errno);
+            close(p2p_client_fd);
+            continue;
+        }
+
         if (connect(p2p_client_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
             close(p2p_client_fd);
             DEBUG_MSG("Cannot connect to p2p errno:" << errno);
@@ -560,7 +567,7 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
             bool sent = false;
             if (util::send_buff(p2p_client_fd, buff, size + header.length())) {
                 DEBUG_MSG("Sent file");
-                sent =  true;
+                sent = true;
             }
             delete[] buff;
             close(p2p_client_fd);
