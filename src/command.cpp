@@ -2,7 +2,6 @@
 #include <../include/global.h>
 #include <../include/Util.h>
 #include "command.h"
-#include <algorithm>
 
 namespace server {
     std::map<std::string, cli_command> build_cli_map() {

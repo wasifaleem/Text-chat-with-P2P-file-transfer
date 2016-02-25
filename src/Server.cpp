@@ -1,5 +1,4 @@
 #include <iostream>
-#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <global.h>
@@ -9,10 +8,8 @@
 #include <sstream>
 
 #include "../include/Server.h"
-#include "../include/ClientInfo.h"
 #include "../include/logger.h"
 #include "../include/Util.h"
-#include "command.h"
 
 
 Server::Server(const char *portNum) : port(portNum) {

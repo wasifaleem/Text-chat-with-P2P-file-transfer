@@ -1,16 +1,7 @@
 #include "../include/Util.h"
 #include "../include/global.h"
-#include <string>
-#include <string.h>
-#include <vector>
-#include <sstream>
-#include <iterator>
 #include <errno.h>
 #include <arpa/inet.h>
-#include <netdb.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <iostream>
 
 
 namespace util {
@@ -38,8 +29,8 @@ namespace util {
     }
 
     const bool send_buff(int sock_fd, const char *buf, size_t size) {
-        ssize_t total = 0;
-        size_t bytes_remaining = size;
+        unsigned long total = 0;
+        unsigned long bytes_remaining = size;
         ssize_t n = 0;
 
         while (total < size) {
