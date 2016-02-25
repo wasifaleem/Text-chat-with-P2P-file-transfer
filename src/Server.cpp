@@ -311,7 +311,7 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                     const client_info_ptype to_client = util::find_by_ip(ip, clients);
                     if (to_client != NULL) {
                         if ((to_client->blocked_ips.count(client->ip) == 0)) {
-                            if (send_client_command(to_client, client_server::SEND, ip, msg)) {
+                            if (send_client_command(to_client, client_server::SEND, client->ip, msg)) {
                                 client->sent_count++;
                                 to_client->receive_count++;
                                 relay(client->ip, ip, msg);
