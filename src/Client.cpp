@@ -5,6 +5,7 @@
 
 #include <fstream>
 #include <errno.h>
+#include <cstring>
 
 Client::Client(const char *portNum) : port(portNum) {
     me = client_key();

@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <algorithm>
 #include <sstream>
+#include <cstring>
 
 #include "../include/Server.h"
 #include "../include/logger.h"

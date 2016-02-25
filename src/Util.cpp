@@ -2,7 +2,7 @@
 #include "../include/global.h"
 #include <errno.h>
 #include <arpa/inet.h>
-
+#include <cstring>
 
 namespace util {
     const bool valid_inet(const std::string ip) {
