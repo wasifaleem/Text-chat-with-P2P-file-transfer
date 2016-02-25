@@ -210,7 +210,7 @@ void Client::cli_command(std::string command_str) {
                 break;
             }
             case client::LOGIN: {
-                if (do_login(command_v.at(1), command_v.at(2))) {
+                if (logged_in || do_login(command_v.at(1), command_v.at(2))) {
                     SUCCESS(command);
                 } else {
                     ERROR(command);
@@ -347,6 +347,7 @@ bool Client::do_login(std::string ip, std::string port) {
         hints.ai_socktype = SOCK_STREAM;
 
         int getaddrinfo_result;
+        int reuse = 1;
         if ((getaddrinfo_result = getaddrinfo(ip.c_str(), port.c_str(), &hints, &result)) != 0) {
             DEBUG_MSG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
             return false;
@@ -356,6 +357,12 @@ bool Client::do_login(std::string ip, std::string port) {
             server_sockfd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
             if (server_sockfd == -1)
                 continue;
+
+            if (setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
+                DEBUG_MSG("Cannot setsockopt() on: " << server_sockfd << " ;errono:" << errno);
+                close(server_sockfd);
+                continue;
+            }
 
             if (connect(server_sockfd, temp->ai_addr, temp->ai_addrlen) == -1) {
                 close(server_sockfd);
@@ -496,6 +503,7 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
+    int reuse = 1;
     int getaddrinfo_result;
     if ((getaddrinfo_result = getaddrinfo(to_client->ip.c_str(), to_client->client_port.c_str(), &hints, &result)) !=
         0) {
@@ -507,6 +515,12 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
         p2p_client_fd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
         if (p2p_client_fd == -1)
             continue;
+
+        if (setsockopt(p2p_client_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
+            DEBUG_MSG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << errno);
+            close(p2p_client_fd);
+            continue;
+        }
 
         if (connect(p2p_client_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
             close(p2p_client_fd);
@@ -543,13 +557,13 @@ bool Client::send_file(client_info_ptype const to_client, std::string file_name)
 
             DEBUG_MSG("Loaded file");
             DEBUG_MSG("Header file " << header);
-            if(util::send_buff(p2p_client_fd, buff, size + header.length())) {
+            if (util::send_buff(p2p_client_fd, buff, size + header.length())) {
                 DEBUG_MSG("Sent file");
                 return true;
             }
             delete[] buff;
             DEBUG_MSG("Sent file");
-            close(p2p_client_fd);
+//            close(p2p_client_fd);
         }
     }
     return false;
