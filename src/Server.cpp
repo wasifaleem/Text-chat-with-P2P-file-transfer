@@ -101,7 +101,15 @@ void Server::select_loop() {
 void Server::new_client(int fd, sockaddr_storage addr, socklen_t len) {
     const client_key key = client_key(util::get_ip(addr), fd);
 
-    client_info_ptype old_client = util::find_by_ip(key.ip, clients);
+    client_info_ptype old_client = NULL;
+
+    for (std::map<client_key, client_info_ptype>::iterator it = clients.begin();
+         it != clients.end(); ++it) {
+        if (key.ip.compare((it->first).ip) == 0
+            && it->second->status == OFFLINE) {
+            old_client = it->second;
+        }
+    };
 
     if (clients.count(key) == 0 && old_client == NULL) {
         client_info_ptype cinfo = new ClientInfo();
@@ -122,7 +130,7 @@ void Server::new_client(int fd, sockaddr_storage addr, socklen_t len) {
         cinfo->service = std::string(service);
 
         clients[key] = cinfo;
-    } else if (old_client->status == OFFLINE) {
+    } else {
         old_client->status = ONLINE;
         old_client->sockfd = fd;
     }
