@@ -23,49 +23,10 @@ void Server::start() {
 }
 
 void Server::do_bind_listen() {
-    struct addrinfo *result, *temp;
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;;
-
-    int getaddrinfo_result;
-    int reuse = 1;
-    if ((getaddrinfo_result = getaddrinfo(NULL, port, &hints, &result)) != 0) {
-        DEBUG_LOG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
-        exit(EXIT_FAILURE);
-    }
-
-    for (temp = result; temp != NULL; temp = temp->ai_next) {
-        server_sockfd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
-        if (server_sockfd == -1)
-            continue;
-
-        if (setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << server_sockfd << " ;errono:" << strerror(errno));
-            close(server_sockfd);
-            continue;
-        }
-
-        if (bind(server_sockfd, temp->ai_addr, temp->ai_addrlen) == 0) {
-            break;
-        }
-
-        close(server_sockfd);
-    }
-
-    if (temp == NULL) {
-        DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
-        exit(EXIT_FAILURE);
+    if (util::bind_listen_on(&server_sockfd, port)) {
+        DEBUG_LOG("Created socket for listening.");
     } else {
-        server_addrinfo = *temp;
-    }
-
-    freeaddrinfo(result);
-
-    if (listen(server_sockfd, SERVER_BACKLOG) == -1) {
-        DEBUG_LOG("Cannot listen on: " << server_sockfd << "; errno: " << strerror(errno));
+        DEBUG_LOG("Cannot create socket for listening.");
         exit(EXIT_FAILURE);
     }
 }

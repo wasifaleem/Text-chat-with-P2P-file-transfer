@@ -43,53 +43,112 @@ namespace util {
         return n != -1;
     }
 
-    const std::string primary_ip() {
-        int sock_fd = 0;
+    bool bind_listen_on(int *sock_fd, const char *port) {
         struct addrinfo *result, *temp;
         struct addrinfo hints;
         memset(&hints, 0, sizeof(struct addrinfo));
         hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_DGRAM;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags = AI_PASSIVE;;
 
         int getaddrinfo_result;
-        if ((getaddrinfo_result = getaddrinfo("8.8.8.8", "53", &hints, &result)) != 0) {
+        int reuse = 1;
+        if ((getaddrinfo_result = getaddrinfo(NULL, port, &hints, &result)) != 0) {
             DEBUG_LOG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
-            return EMPTY_STRING;
+            return false;
         }
 
         for (temp = result; temp != NULL; temp = temp->ai_next) {
-            sock_fd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
-            if (sock_fd == -1) {
-                close(sock_fd);
+            *sock_fd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
+            if (*sock_fd == -1)
+                continue;
+
+            if (setsockopt(*sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
+                DEBUG_LOG("Cannot setsockopt() on: " << *sock_fd << " errono: " << strerror(errno));
+                close(*sock_fd);
+                continue;
+            }
+
+            if (bind(*sock_fd, temp->ai_addr, temp->ai_addrlen) == 0) {
+                break;
+            }
+
+            close(*sock_fd);
+        }
+        freeaddrinfo(result);
+
+        if (temp == NULL) {
+            DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
+            return false;
+        }
+
+        if (listen(*sock_fd, SERVER_BACKLOG) == -1) {
+            DEBUG_LOG("Cannot listen on: " << *sock_fd << " errno: " << strerror(errno));
+            return false;
+        }
+        return true;
+    }
+
+    bool connect_to(int *sock_fd, const char *ip, const char *port, int ai_socktype) {
+        struct addrinfo *result, *temp;
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(struct addrinfo));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = ai_socktype;
+
+        int getaddrinfo_result;
+        int reuse = 1;
+        if ((getaddrinfo_result = getaddrinfo(ip, port, &hints, &result)) != 0) {
+            DEBUG_LOG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
+            return false;
+        }
+
+        for (temp = result; temp != NULL; temp = temp->ai_next) {
+            *sock_fd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
+            if (*sock_fd == -1)
+                continue;
+
+            if (setsockopt(*sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
+                DEBUG_LOG("Cannot setsockopt() on: " << *sock_fd << "  errono: " << strerror(errno));
+                close(*sock_fd);
+                continue;
+            }
+
+            if (connect(*sock_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
+                close(*sock_fd);
+                DEBUG_LOG("Cannot connect to " << ip << " errno:" << strerror(errno));
                 continue;
             }
             break;
         }
-
-        if (temp == NULL) {
-            DEBUG_LOG("Cannot create a socket; errno:" << errno);
-            return EMPTY_STRING;
-        }
-
         freeaddrinfo(result);
 
-        if (connect(sock_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
-            DEBUG_LOG("Cannot connect on: " << sock_fd << "; errno: " << errno);
-            return EMPTY_STRING;
+        if (temp == NULL) {
+            DEBUG_LOG("Cannot find a socket to bind to, errno: " << strerror(errno));
+            return false;
         }
 
-        struct sockaddr_storage in;
-        socklen_t in_len = sizeof(in);
+        return true;
+    }
 
-        if (getsockname(sock_fd, (struct sockaddr *) &in, &in_len) == -1) {
-            DEBUG_LOG("Cannot getsockname on: " << sock_fd << "; errno: " << errno);
-            return EMPTY_STRING;
-        }
+    const std::string primary_ip() {
+        int sock_fd = 0;
 
-        if (sock_fd != 0) {
-            close(sock_fd);
+        if (connect_to(&sock_fd, "8.8.8.8", "53", SOCK_DGRAM)) {
+            struct sockaddr_storage in;
+            socklen_t in_len = sizeof(in);
+
+            if (getsockname(sock_fd, (struct sockaddr *) &in, &in_len) == -1) {
+                DEBUG_LOG("Cannot getsockname on: " << sock_fd << "; errno: " << errno);
+                return EMPTY_STRING;
+            }
+
+            if (sock_fd != 0) {
+                close(sock_fd);
+            }
+            return get_ip(in);
         }
-        return get_ip(in);
+        return EMPTY_STRING;
     }
 
     const std::vector<std::string> split_by_space(const std::string s) {

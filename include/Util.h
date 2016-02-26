@@ -7,6 +7,9 @@
 #include "ClientInfo.h"
 
 namespace util {
+    bool connect_to(int *sock_fd, const char *ip, const char *port, int ai_socktype);
+    bool bind_listen_on(int *sock_fd, const char *port);
+
     const bool valid_inet(const std::string ip);
     const std::string get_ip(const sockaddr_storage addr);
     const bool send_string(int sock_fd, const std::string data);

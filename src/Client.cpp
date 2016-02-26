@@ -19,50 +19,10 @@ void Client::start() {
 }
 
 void Client::do_bind_listen() {
-    struct addrinfo *result, *temp;
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;;
-
-    int getaddrinfo_result;
-    int reuse = 1;
-    if ((getaddrinfo_result = getaddrinfo(NULL, port, &hints, &result)) != 0) {
-        DEBUG_LOG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
-        exit(EXIT_FAILURE);
-    }
-
-    for (temp = result; temp != NULL; temp = temp->ai_next) {
-        p2p_listen_sockfd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
-        if (p2p_listen_sockfd == -1)
-            continue;
-
-        if (setsockopt(p2p_listen_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << p2p_listen_sockfd << " ;errono:" << strerror(errno));
-            close(p2p_listen_sockfd);
-            continue;
-        }
-
-        if (bind(p2p_listen_sockfd, temp->ai_addr, temp->ai_addrlen) == 0) {
-            break;
-        }
-
-        close(p2p_listen_sockfd);
-    }
-
-    if (temp == NULL) {
-        DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
-        exit(EXIT_FAILURE);
+    if (util::bind_listen_on(&p2p_listen_sockfd, port)) {
+        DEBUG_LOG("Created socket for p2p listening.");
     } else {
-        p2p_listen_addrinfo = *temp;
-    }
-
-    freeaddrinfo(result);
-
-    if (listen(p2p_listen_sockfd, SERVER_BACKLOG) == -1) {
-        DEBUG_LOG("Cannot listen on: " << p2p_listen_sockfd << "; errno: " << strerror(errno));
-        exit(EXIT_FAILURE);
+        DEBUG_LOG("Cannot create socket for p2p listening.");
     }
 }
 
@@ -150,7 +110,7 @@ void Client::select_loop() {
                             FD_CLR((*it->second).sock_fd, &all_fd);
                             p2p_clients.erase(it->first);
                         } else {
-                            DEBUG_LOG("RECV " << "fd:" << (*it->second).sock_fd << " errorno:" << strerror(errno));
+                            DEBUG_LOG("RECV " << "fd:" << (*it->second).sock_fd << " errorno: " << strerror(errno));
                         }
                     }
                 }
@@ -331,47 +291,9 @@ void Client::cli_command(std::string command_str) {
 }
 
 bool Client::do_login(std::string ip, std::string port) {
-    if (util::valid_inet(ip)) {
-        struct addrinfo *result, *temp;
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-
-        int getaddrinfo_result;
-        int reuse = 1;
-        if ((getaddrinfo_result = getaddrinfo(ip.c_str(), port.c_str(), &hints, &result)) != 0) {
-            DEBUG_LOG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
-            return false;
-        }
-
-        for (temp = result; temp != NULL; temp = temp->ai_next) {
-            server_sockfd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
-            if (server_sockfd == -1)
-                continue;
-
-            if (setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-                DEBUG_LOG("Cannot setsockopt() on: " << server_sockfd << " ;errono:" << strerror(errno));
-                close(server_sockfd);
-                continue;
-            }
-
-            if (connect(server_sockfd, temp->ai_addr, temp->ai_addrlen) == -1) {
-                close(server_sockfd);
-                DEBUG_LOG("Cannot connect to server errno:" << strerror(errno));
-                continue;
-            }
-
-            server_addrinfo = *temp;
-            break;
-        }
-
-        if (temp == NULL) {
-            DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
-            return false;
-        }
-        freeaddrinfo(result);
-
+    if (util::valid_inet(ip)
+        && util::connect_to(&server_sockfd, ip.c_str(), port.c_str(), SOCK_STREAM)
+        && server_sockfd != 0) {
         FD_SET(server_sockfd, &all_fd); // add server to our set
         if (max_fd < server_sockfd) { // update max_fd
             max_fd = server_sockfd;
@@ -469,6 +391,9 @@ void Client::log_received() {
 }
 
 Client::~Client() {
+    if (logged_in) {
+        close(server_sockfd);
+    }
     for (std::map<client_key, client_info_ptype>::const_iterator it = clients_from_server.begin();
          it != clients_from_server.end(); ++it) {
         delete it->second;
@@ -489,54 +414,8 @@ const client_info_ptype Client::find_me() {
 
 bool Client::send_file(client_info_ptype const to_client, std::string file_name) {
     int p2p_client_fd = 0;
-    struct addrinfo *result, *temp;
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    int reuse = 1;
-    int getaddrinfo_result;
-    if ((getaddrinfo_result = getaddrinfo(to_client->ip.c_str(), to_client->client_port.c_str(), &hints, &result)) !=
-        0) {
-        DEBUG_LOG("getaddrinfo: " << gai_strerror(getaddrinfo_result));
-        return false;
-    }
-
-    for (temp = result; temp != NULL; temp = temp->ai_next) {
-        p2p_client_fd = socket(temp->ai_family, temp->ai_socktype, temp->ai_protocol);
-        if (p2p_client_fd == -1)
-            continue;
-
-        if (setsockopt(p2p_client_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << strerror(errno));
-            close(p2p_client_fd);
-            continue;
-        }
-
-        struct linger l = {1, 60 * 2};
-        if (setsockopt(p2p_client_fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l)) == -1) {
-            DEBUG_LOG("Cannot setsockopt() on: " << p2p_client_fd << " ;errono:" << strerror(errno));
-            close(p2p_client_fd);
-            continue;
-        }
-
-        if (connect(p2p_client_fd, temp->ai_addr, temp->ai_addrlen) == -1) {
-            close(p2p_client_fd);
-            DEBUG_LOG("Cannot connect to p2p errno:" << strerror(errno));
-            continue;
-        }
-
-        break;
-    }
-
-    if (temp == NULL) {
-        DEBUG_LOG("Cannot find a socket to bind to; errno:" << strerror(errno));
-        return false;
-    }
-    freeaddrinfo(result);
-
-    if (p2p_client_fd != 0) {
+    if (util::connect_to(&p2p_client_fd, to_client->ip.c_str(), to_client->client_port.c_str(), SOCK_STREAM)
+        && p2p_client_fd != 0) {
         long size;
         char *buff;
         std::ifstream file(file_name.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
