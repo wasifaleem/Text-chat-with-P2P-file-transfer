@@ -12,6 +12,7 @@
 #define SPACE ' '
 #define UBIT_NAME "wasifale"
 #define EMPTY_STRING ""
+#define BROADCAST_IP "255.255.255.255"
 
 
 #endif

@@ -302,12 +302,12 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                                 it->second->receive_count++;
                             } else {
                                 it->second->messages.push_back(
-                                        std::make_pair(client_key("255.255.255.255", key.sockfd), msg));
+                                        std::make_pair(client_key(BROADCAST_IP, key.sockfd), msg));
                             }
                         }
                     }
                 };
-                relay(client->ip, "255.255.255.255", msg);
+                relay(client->ip, BROADCAST_IP, msg);
                 break;
             }
             case client_server::BLOCK: {
@@ -351,7 +351,6 @@ void Server::log_relay(ClientInfo *client) {
     if (!client->messages.empty()) {
         for (std::deque<std::pair<client_key, std::string> >::const_iterator it = client->messages.begin();
              it != client->messages.end(); ++it) {
-            (clients[it->first])->sent_count++;
             client->receive_count++;
             relay(it->first.ip, client->ip, it->second);
         }
