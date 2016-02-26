@@ -270,9 +270,9 @@ void Server::client_command(std::string command_str, const client_key key, Clien
                 if (util::valid_inet(ip)) {
                     const client_info_ptype to_client = util::find_by_ip(ip, clients);
                     if (to_client != NULL) {
+                        client->sent_count++;
                         if ((to_client->blocked_ips.count(client->ip) == 0)) {
                             if (send_client_command(to_client, client_server::SEND, client->ip, msg)) {
-                                client->sent_count++;
                                 to_client->receive_count++;
                                 relay(client->ip, ip, msg);
                             } else {
@@ -285,13 +285,13 @@ void Server::client_command(std::string command_str, const client_key key, Clien
             }
             case client_server::BROADCAST: {
                 const std::string msg = util::join_by_space_from_pos(command_v, 1);
+                client->sent_count++;
                 for (std::map<client_key, client_info_ptype>::iterator it = clients.begin();
                      it != clients.end(); ++it) {
                     if (!(it->first == key)) {
                         if (it->second->blocked_ips.count(client->ip) == 0) {
                             if (send_client_command(it->second, client_server::BROADCAST, msg)) {
                                 it->second->receive_count++;
-                                client->sent_count++;
                             } else {
                                 it->second->messages.push_back(
                                         std::make_pair(client_key("255.255.255.255", key.sockfd), msg));
